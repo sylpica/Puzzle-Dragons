@@ -286,7 +286,16 @@ function effType(r,c){
  return board[r][c].t;
 }
 /* ---------- rendering: cell layer + smooth drop layer ---------- */
-function render(){renderCells();syncDrops()}
+function fitBoard(){
+ if(window.innerWidth>window.innerHeight){
+   const maxH=Math.floor(window.innerHeight*0.55);
+   wrapEl.style.width=Math.floor(maxH*cols/rows)+"px";
+ }else{
+   wrapEl.style.width="";
+ }
+ wrapEl.style.margin="0 auto";
+}
+function render(){fitBoard();renderCells();syncDrops()}
 function renderCells(){
  boardEl.style.gridTemplateColumns="repeat("+cols+",1fr)";
  boardEl.innerHTML="";
