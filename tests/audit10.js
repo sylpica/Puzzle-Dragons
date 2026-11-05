@@ -244,7 +244,9 @@ async function drag(page, from, to, steps) {
       let thorn = 0; for (let i = 0; i < 120; i++) { fill(); for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (board[r][c].thorn) thorn++; }
       res.thornShare = thorn / 3600;
       skyFx.thorn = false; skyFx.sblind = true;
-      fill(); res.allSblind = board.flat().every(d => d.sblind === 3);
+      let sb = 0, sbBad = 0;
+      for (let i = 0; i < 120; i++) { fill(); for (const d of board.flat()) { if (d.sblind > 0) { sb++; if (d.sblind !== 1) sbBad++; } } }
+      res.sblindShare = sb / 3600; res.sblindBadVal = sbBad;
       skyFx.sblind = false;
       document.getElementById('ochikonSel').value = 'off'; document.getElementById('megumiSel').value = 'none';
       newBoard(true); render();
@@ -257,7 +259,8 @@ async function drag(page, from, to, steps) {
     ok('O5 poison skyfall toggle alone: poison ~25%, no jammer/dpoison mixed in', Math.abs(stats.poiShare - 0.25) <= 0.035 && stats.poiJammer === 0 && stats.poiDpoi === 0,
       'poison=' + stats.poiShare.toFixed(3));
     ok('O6 thorn skyfall toggle alone: ~15% of spawns carry thorn', Math.abs(stats.thornShare - 0.15) <= 0.03, stats.thornShare.toFixed(3));
-    ok('O7 super-blind skyfall toggle: every spawn is super-blind (sblind=3)', stats.allSblind === true, JSON.stringify(stats.allSblind));
+    ok('O7 super-blind skyfall toggle: ~30% of spawns are super-blind with 1 turn remaining (partial, as in the real game)',
+      Math.abs(stats.sblindShare - 0.30) <= 0.035 && stats.sblindBadVal === 0, 'share=' + stats.sblindShare.toFixed(3));
     await page.close();
   }
 
@@ -690,6 +693,43 @@ async function drag(page, from, to, steps) {
     ok('R11 full reset restores roulette defaults (std preset, all colors, 1s) after a custom setting',
       r11.preset === 'std' && r11.allChecked && r11.interval === '1000' && r11.customDisplay === 'none' && r11.before.colors.join() === 'fire,poison',
       JSON.stringify(r11));
+    const u8 = await page.evaluate(() => {
+      snapshot = 'KEEP'; tool = { kind: 'mod', value: 'modclear' }; paint(0, 0);
+      const afterModClear = snapshot;
+      snapshot = 'KEEP'; tool = { kind: 'pos', value: 'posclear' }; paint(0, 0);
+      const afterPosClear = snapshot;
+      snapshot = 'KEEP'; tool = { kind: 'mod', value: 'plus' }; paint(0, 0);
+      const afterRealChange = snapshot;
+      tool = { kind: 'mod', value: 'plus' }; paint(0, 0);
+      return { afterModClear, afterPosClear, afterRealChange };
+    });
+    ok('U8 no-change edits (state clear / pos clear on untouched cells) keep the undo snapshot; a real edit discards it',
+      u8.afterModClear === 'KEEP' && u8.afterPosClear === 'KEEP' && u8.afterRealChange === null, JSON.stringify(u8));
+    const u9 = await page.evaluate(() => {
+      snapshot = 'KEEP'; bulkSel = new Set(['fire', 'water']); document.getElementById('bulkFillBtn').click();
+      const afterFillFail = snapshot;
+      snapshot = 'KEEP'; bulkSel = new Set(); document.getElementById('bulkJinBtn').click();
+      const afterJinFail = snapshot;
+      return { afterFillFail, afterJinFail };
+    });
+    ok('U9 failed bulk operations (wrong color count) keep the undo snapshot',
+      u9.afterFillFail === 'KEEP' && u9.afterJinFail === 'KEEP', JSON.stringify(u9));
+    const o8 = await page.evaluate(() => {
+      document.getElementById('ochikonSel').value = 'off';
+      document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['fire', 'water']); syncSkyFxUI();
+      let impure = 0, refilled = 0, matched = 0;
+      for (let i = 0; i < 60; i++) {
+        newBoard(true);
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (Math.random() < 0.4) board[r][c] = null;
+        refillEmpties();
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (lastSpawned.has(board[r][c].uid)) { refilled++; if (board[r][c].t !== 'fire' && board[r][c].t !== 'water') impure++; }
+        if (findMatches().groups.length) matched++;
+      }
+      document.getElementById('megumiSel').value = 'none'; syncSkyFxUI();
+      return { impure, refilled, matched };
+    });
+    ok('O8 megumi "only" refills stay pure (no out-of-set drops) and match-free',
+      o8.impure === 0 && o8.matched === 0 && o8.refilled > 300, JSON.stringify(o8));
     const p8 = await page.evaluate(async () => {
       activePid = 99; held = { r: 0, c: 0 }; heldUid = board[0][0].uid; moveStarted = false;
       const ev = new Event('lostpointercapture'); ev.pointerId = 99;
