@@ -216,7 +216,7 @@ let bulkSel=new Set(["fire"]);
 let turn=0,maxCombo=0,turnDmg=0;
 const roulT0=Date.now();let phaseLatch=null;
 const stepFor=iv=>Math.floor((Date.now()-roulT0)/iv);
-let opTime=6.0,snapshot=null,resolving=false;
+let opTime=6.0,snapshot=null,pendingSnapshot=null,resolving=false;
 let held=null,heldUid=null,lastPointer=null,timerId=null,remainMs=0,moveStarted=false,thornsThisMove=0;
 let uidSeq=1,lastSpawned=new Set();
 const dropNodes=new Map();
@@ -523,6 +523,11 @@ async function resolveBoard(){
  await wait(400);hideComboPop();
 }
 /* ---------- play input ---------- */
+function makeSnapshot(){
+ return JSON.stringify({cols,rows,board,pos,turn,turnDmg,maxCombo,
+  stCombo:$("stCombo").textContent,lrCombo:$("lrCombo").textContent,
+  lrCleared:$("lrCleared").textContent,lrDmg:$("lrDmg").textContent});
+}
 function cellFromEvent(e){
  const rect=wrapEl.getBoundingClientRect();
  const x=(e.clientX-rect.left),y=(e.clientY-rect.top);
@@ -543,9 +548,7 @@ wrapEl.addEventListener("pointerdown",e=>{
  activePid=e.pointerId;
  lastPointer=pointerPos(e);
  if(editMode){paint(p.r,p.c);lastPaint={r:p.r,c:p.c};editDrag=true;wrapEl.setPointerCapture(e.pointerId);return}
- snapshot=JSON.stringify({cols,rows,board,pos,turn,turnDmg,maxCombo,
-  stCombo:$("stCombo").textContent,lrCombo:$("lrCombo").textContent,
-  lrCleared:$("lrCleared").textContent,lrDmg:$("lrDmg").textContent});
+ pendingSnapshot=makeSnapshot();
  held={r:p.r,c:p.c};heldUid=board[p.r][p.c].uid;moveStarted=false;
  wrapEl.setPointerCapture(e.pointerId);
  render();
@@ -584,14 +587,14 @@ function swapHeld(nr,nc){
  board[held.r][held.c]=b;board[nr][nc]=a;
  bakeRoulEntry(a,pb);bakeRoulEntry(b,pa);
  held={r:nr,c:nc};
- if(!moveStarted){moveStarted=true;startTimer()}
+ if(!moveStarted){if(pendingSnapshot!==null){snapshot=pendingSnapshot;pendingSnapshot=null}moveStarted=true;startTimer()}
 }
 async function endMove(){
  if(!held)return;
  held=null;heldUid=null;stopTimer(false);
  render();
- if(moveStarted){await resolveBoard()}else{snapshot=null}
- moveStarted=false;stopTimer();render();
+ if(moveStarted){await resolveBoard()}else{pendingSnapshot=null}
+ moveStarted=false;pendingSnapshot=null;stopTimer();render();
 }
 wrapEl.addEventListener("pointerup",e=>{if(activePid!==null&&e.pointerId!==activePid)return;activePid=null;lastPaint=null;if(editMode){editDrag=false;return}endMove()});
 wrapEl.addEventListener("pointercancel",e=>{if(activePid!==null&&e.pointerId!==activePid)return;activePid=null;lastPaint=null;if(editMode){editDrag=false;return}endMove()});
@@ -690,13 +693,17 @@ function buildPalettes(){
 /* controls */
 $("modeBtn").onclick=()=>{
  if(resolving)return;
+ // Cancel only a move that actually started: restore its pre-move board and drop
+ // that undo target. A plain mode toggle (or an unmoved grab) keeps the last
+ // completed move's undo snapshot intact.
+ if(held&&moveStarted&&snapshot){try{const before=JSON.parse(snapshot);board=before.board;pos=before.pos}catch(e){}snapshot=null}
+ pendingSnapshot=null;
  editMode=!editMode;
  $("stageEdit").style.display=editMode?"flex":"none";
  $("stagePlay").style.display=editMode?"none":"flex";
  $("modeBtn").textContent=editMode?"▶️ プレイに戻る":"✏️ 編集モード";
  $("modeBtn").classList.toggle("edit",editMode);
- if(held&&snapshot){try{const before=JSON.parse(snapshot);board=before.board;pos=before.pos}catch(e){}}
- snapshot=null;activePid=null;editDrag=false;lastPaint=null;moveStarted=false;thornsThisMove=0;lastPointer=null;
+ activePid=null;editDrag=false;lastPaint=null;moveStarted=false;thornsThisMove=0;lastPointer=null;
  held=null;heldUid=null;stopTimer();render();
 };
 document.querySelectorAll(".etab").forEach(b=>b.onclick=()=>{
