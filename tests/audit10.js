@@ -403,6 +403,96 @@ async function drag(page, from, to, steps) {
     await page.close();
   }
 
+
+  /* ===== 13) strict L-shape lock release ===== */
+  {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    const lockAt = () => page.evaluate(() => board[0][0].lock);
+    // T shape (junction mid-run) must NOT unlock
+    await setBoard(page, [
+      { r: 0, c: 0, cell: { lock: true } },
+      { r: 4, c: 1, t: 'fire' }, { r: 4, c: 2, t: 'fire' }, { r: 4, c: 3, t: 'fire' }, { r: 3, c: 2, t: 'fire' }, { r: 2, c: 2, t: 'fire' },
+    ]);
+    await page.evaluate(() => resolveBoard());
+    await page.waitForTimeout(300);
+    ok('L1 T-shape clear does NOT release locks', await lockAt() === true, '');
+    // cross/plus shape must NOT unlock
+    await setBoard(page, [
+      { r: 0, c: 0, cell: { lock: true } },
+      { r: 2, c: 1, t: 'fire' }, { r: 2, c: 2, t: 'fire' }, { r: 2, c: 3, t: 'fire' }, { r: 1, c: 2, t: 'fire' }, { r: 3, c: 2, t: 'fire' },
+    ]);
+    await page.evaluate(() => resolveBoard());
+    await page.waitForTimeout(300);
+    ok('L2 plus-shape clear does NOT release locks', await lockAt() === true, '');
+    // true L (corner at the end of both runs) DOES unlock board-wide
+    await setBoard(page, [
+      { r: 0, c: 0, cell: { lock: true } },
+      { r: 4, c: 0, t: 'fire' }, { r: 4, c: 1, t: 'fire' }, { r: 4, c: 2, t: 'fire' }, { r: 3, c: 0, t: 'fire' }, { r: 2, c: 0, t: 'fire' },
+    ]);
+    await page.evaluate(() => resolveBoard());
+    await page.waitForTimeout(300);
+    ok('L3 true L-shape clear releases all locks', await lockAt() === false, '');
+    ok('L4 no page errors (L shapes)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
+    await page.close();
+  }
+
+  /* ===== 14) mid-drag UI races (second-finger taps) ===== */
+  {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    await setBoard(page, [{ r: 0, c: 0, t: 'fire' }, { r: 0, c: 1, t: 'water' }, { r: 1, c: 1, t: 'fire' }, { r: 2, c: 1, t: 'fire' }]);
+    const a = await cellCenter(page, 0, 0); const b = await cellCenter(page, 0, 1);
+    await page.mouse.move(a.x, a.y); await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 5 }); // drag in progress, timer running
+    await page.evaluate(() => document.querySelector('.sizechip[data-size="7x6"]').click());
+    const mid = await page.evaluate(() => ({ cols, rows, held: !!held }));
+    await page.mouse.up(); await page.waitForTimeout(2400);
+    const fin = await page.evaluate(() => ({ cols, turn, resolving }));
+    ok('V1 size change is blocked mid-drag; the move still resolves normally',
+      mid.cols === 6 && mid.held && fin.cols === 6 && fin.turn === 1 && !fin.resolving && page.errs.length === 0,
+      JSON.stringify({ mid, fin, errs: page.errs.slice(0, 1) }));
+    await page.close();
+  }
+  {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    await setBoard(page, [{ r: 0, c: 0, t: 'fire' }, { r: 0, c: 1, t: 'water' }, { r: 1, c: 1, t: 'fire' }, { r: 2, c: 1, t: 'fire' }]);
+    const a = await cellCenter(page, 0, 0); const b = await cellCenter(page, 0, 1);
+    await page.mouse.move(a.x, a.y); await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 5 });
+    await page.evaluate(() => document.getElementById('resetBtn').click());
+    const mid = await page.evaluate(() => ({ held: !!held, timer: !!timerId, turn, stTime: document.getElementById('stTime').textContent }));
+    await page.mouse.up(); await page.waitForTimeout(400);
+    ok('V2 settings reset mid-drag cancels the drag and stops the timer cleanly',
+      !mid.held && !mid.timer && mid.turn === 0 && mid.stTime === '6.0' && page.errs.length === 0,
+      JSON.stringify({ mid, errs: page.errs.slice(0, 1) }));
+    await page.close();
+  }
+
+  /* ===== 12) FZ: ochikon OFF — full resolutions across all megumi profiles must rest full & match-free ===== */
+  for (const prof of ['none', 'hazard', 'water', 'firewater', 'lightdark']) {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    await page.evaluate(p => { document.getElementById('ochikonSel').value = 'off'; document.getElementById('megumiSel').value = p; }, prof);
+    let bad = 0, details = '';
+    for (let i = 0; i < 12; i++) {
+      await page.evaluate(() => {
+        const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { board[r][c] = makeCell(B[(r + 2 * c) % 6]); pos[r][c] = makePos(); }
+        const t1 = B[Math.floor(Math.random() * 6)], t2 = B[Math.floor(Math.random() * 6)];
+        const r1 = Math.floor(Math.random() * rows), r2 = Math.floor(Math.random() * rows);
+        for (let k = 0; k < 3; k++) { board[r1][k].t = t1; board[r2][cols - 1 - k].t = t2; }
+        board[Math.floor(Math.random() * rows)][Math.floor(Math.random() * cols)] = makeCell('bomb');
+        render();
+      });
+      await page.evaluate(() => resolveBoard());
+      await page.waitForFunction(() => !resolving, null, { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(150);
+      const s = await page.evaluate(() => ({ full: board.flat().every(Boolean), rest: findMatches().groups.length, resolving }));
+      if (!s.full || s.rest !== 0 || s.resolving) { bad++; details = JSON.stringify(s); }
+    }
+    ok('FZ1 ochikon OFF (' + prof + '): 12 full resolutions all rest full & match-free', bad === 0, details);
+    ok('FZ2 no page errors (fuzz ' + prof + ')', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
+    await page.close();
+  }
+
   console.log(results.join('\n'));
   const fails = results.filter(r => r.startsWith('FAIL')).length;
   console.log('TOTAL: ' + results.length + ' checks, ' + fails + ' failures');

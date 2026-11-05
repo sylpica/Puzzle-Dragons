@@ -473,9 +473,16 @@ async function resolveBoard(){
    showComboPop(combos);
    if(g.type==="poison"){const d=(g.cells.length+1)*5;dmgParts.push("毒 "+g.cells.length+"個 "+d+"%");turnDmg+=d}
    if(g.type==="dpoison"){const d=(g.cells.length+1)*12.5;dmgParts.push("猛毒 "+g.cells.length+"個 "+fmtPct(d));turnDmg+=d}
-   const rowsInG={},colsInG={};
-   g.cells.forEach(([r,c])=>{rowsInG[r]=(rowsInG[r]||0)+1;colsInG[c]=(colsInG[c]||0)+1});
-   if(Object.values(rowsInG).some(v=>v>=3)&&Object.values(colsInG).some(v=>v>=3))lShape=true;
+   // strict L test: a corner cell that sits at the END of both a >=3 row run and a >=3 column run
+   const cellSet=new Set(g.cells.map(([r,c])=>r*100+c));
+   for(const [r,c] of g.cells){
+     let L=0,Rr=0,U=0,D=0;
+     for(let x=c-1;cellSet.has(r*100+x);x--)L++;
+     for(let x=c+1;cellSet.has(r*100+x);x++)Rr++;
+     for(let y=r-1;cellSet.has(y*100+c);y--)U++;
+     for(let y=r+1;cellSet.has(y*100+c);y++)D++;
+     if((L===0||Rr===0)&&(U===0||D===0)&&L+Rr+1>=3&&U+D+1>=3){lShape=true;break}
+   }
    clearedByType[g.type]=(clearedByType[g.type]||0)+g.cells.length;clearedTotal+=g.cells.length;
    await flashCells(g.cells);
    g.cells.forEach(([r,c])=>{board[r][c]=null});
@@ -678,7 +685,7 @@ document.querySelectorAll(".etab").forEach(b=>b.onclick=()=>{
 });
 $("stateResetBtn").onclick=()=>{
  if(resolving)return;
- turn=0;maxCombo=0;turnDmg=0;snapshot=null;thornsThisMove=0;held=null;heldUid=null;stopTimer();
+ turn=0;maxCombo=0;turnDmg=0;snapshot=null;thornsThisMove=0;held=null;heldUid=null;moveStarted=false;activePid=null;lastPointer=null;stopTimer();
  $("stCombo").textContent=0;
  $("lrCombo").textContent="-";$("lrCleared").textContent="-";$("lrDmg").textContent="-";
  hideComboPop();render();
@@ -692,18 +699,19 @@ $("resetBtn").onclick=()=>{
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size==="6x5"));
  $("ochikonSel").value="off";$("megumiSel").value="none";
  setTime(6);
- turn=0;maxCombo=0;turnDmg=0;snapshot=null;held=null;heldUid=null;thornsThisMove=0;
+ turn=0;maxCombo=0;turnDmg=0;snapshot=null;held=null;heldUid=null;thornsThisMove=0;moveStarted=false;activePid=null;lastPointer=null;stopTimer();
  $("stCombo").textContent=0;
  $("lrCombo").textContent="-";$("lrCleared").textContent="-";$("lrDmg").textContent="-";
  hideComboPop();
  newBoard(true);render();
 };
-document.querySelectorAll(".sizechip").forEach(b=>b.onclick=()=>{if(resolving)return;
+document.querySelectorAll(".sizechip").forEach(b=>b.onclick=()=>{if(resolving||held)return;
+ snapshot=null;
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.remove("on"));b.classList.add("on");
  const [c,r]=b.dataset.size.split("x").map(Number);cols=c;rows=r;newBoard(true);render();
 });
-$("shuffleBtn").onclick=()=>{if(!resolving)shuffleBoard()};
-$("undoBtn").onclick=()=>{if(snapshot&&!resolving){let s=null;try{s=JSON.parse(snapshot)}catch(e){}
+$("shuffleBtn").onclick=()=>{if(!resolving&&!held)shuffleBoard()};
+$("undoBtn").onclick=()=>{if(snapshot&&!resolving&&!held){let s=null;try{s=JSON.parse(snapshot)}catch(e){}
  const v=s&&sanitizeData({cols:s.cols,rows:s.rows,board:s.board,pos:s.pos});
  if(v){cols=v.cols;rows=v.rows;board=v.board;pos=v.pos;turn=s.turn;turnDmg=s.turnDmg||0;maxCombo=s.maxCombo||0;
   document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size===cols+"x"+rows));
@@ -711,7 +719,7 @@ $("undoBtn").onclick=()=>{if(snapshot&&!resolving){let s=null;try{s=JSON.parse(s
   $("lrCombo").textContent=s.lrCombo||"-";$("lrCleared").textContent=s.lrCleared||"-";
   $("lrDmg").textContent=s.lrDmg||"-";hideComboPop();}
  snapshot=null;render()}};
-$("resetDmgBtn").onclick=()=>{snapshot=null;turnDmg=0;render()};
+$("resetDmgBtn").onclick=()=>{if(resolving)return;snapshot=null;turnDmg=0;render()};
 $("bulkFillBtn").onclick=()=>{
  snapshot=null; if(bulkSel.size!==1){alert("全マス変更は色を1つだけ選んでください（複数色は「陣にする」を使ってください）");return}
  const t=[...bulkSel][0];
