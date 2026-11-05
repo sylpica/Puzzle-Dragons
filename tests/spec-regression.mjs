@@ -39,8 +39,8 @@ test("roulette stops on held/locked only",()=>{
 });
 const matches=between("function findMatches(){","function gravityAndRefill(){");
 const solve=between("async function resolveBoard(){","/* ---------- play input ---------- */");
-const makeRuntime=new Function("fixture",`
- let board=fixture.board,cols=fixture.cols,rows=fixture.rows,pos=fixture.pos,held=null,turn=0,maxCombo=0,turnDmg=0,dmgEntries=[],thornsThisMove=0,resolving=false,refills=0;
+const makeRuntime=(fixture,solver=solve,thorn=0)=>new Function("fixture","thorn",`
+ let board=fixture.board,cols=fixture.cols,rows=fixture.rows,pos=fixture.pos,held=null,turn=0,maxCombo=0,turnDmg=0,dmgEntries=[],thornsThisMove=thorn,resolving=false,refills=0;
  const TYPES=Object.fromEntries(["fire","water","wood","light","dark","heal","poison","dpoison","jammer","bomb"].map(x=>[x,{name:x}]));
  const basic=["fire","water","wood","light","dark","heal"];let id=1000;
  const elements={};const $=id=>(elements[id] ||= {textContent:"",innerHTML:""});
@@ -55,10 +55,10 @@ const makeRuntime=new Function("fixture",`
  }
  ${eff}
  ${matches}
- ${solve}
+ ${solver}
  return {run:async()=>{const initial=findMatches().groups.map(g=>({type:g.type,n:g.cells.length}));await resolveBoard();
   return {initial,turn,refills,combos:elements.stCombo?.textContent,damage:elements.lrDmg?.textContent,details:elements.lrDetail?.innerHTML}}};
-`);
+`)(fixture,thorn);
 test("simultaneous combos refill only after their batch",async()=>{
  const x=fresh();
  for(let r=0;r<3;r++){x.board[r][0].t="fire";x.board[r][3].t="water"}
@@ -72,6 +72,24 @@ test("matched bombs survive explosion from an isolated bomb",async()=>{
  const a=await makeRuntime(x).run();
  assert.equal(a.initial.length,1);assert.equal(a.damage,"20%");
  assert.match(a.details,/bomb 3個/);
+});
+test("damage formulas: four independently specified values and four killed mutants",async()=>{
+ const scenarios=[
+  {name:"poison",type:"poison",expected:"20%",from:"(g.cells.length+1)*5",to:"(g.cells.length+1)*6"},
+  {name:"dpoison",type:"dpoison",expected:"50%",from:"(g.cells.length+1)*12.5",to:"(g.cells.length+1)*10"},
+  {name:"bomb",type:"bomb",expected:"20%",from:"bombExplode.length*20",to:"bombExplode.length*25"},
+  {name:"thorn",type:null,expected:"8%",from:"thornsThisMove*4",to:"thornsThisMove*6"}
+ ];
+ for(const q of scenarios){
+  const setup=()=>{const x=fresh();if(q.name==="bomb")x.board[0][5].t="bomb";
+   else if(q.type)for(let c=0;c<3;c++)x.board[0][c].t=q.type;
+   return x;
+  };
+  assert.equal((await makeRuntime(setup(),solve,q.name==="thorn"?2:0).run()).damage,q.expected,q.name+" baseline");
+  assert.ok(solve.includes(q.from),"Missing targeted mutant: "+q.name);
+  const mutant=solve.replace(q.from,q.to);
+  assert.notEqual((await makeRuntime(setup(),mutant,q.name==="thorn"?2:0).run()).damage,q.expected,q.name+" mutation survived");
+ }
 });
 let failed=0;
 for(const [name,fn] of tests){
