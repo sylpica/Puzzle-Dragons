@@ -685,13 +685,13 @@ async function drag(page, from, to, steps) {
       return {
         before: { preset: document.getElementById('roulPreset').value, colors: before.colors, interval: before.interval },
         preset: document.getElementById('roulPreset').value,
-        allChecked: [...document.querySelectorAll('.roulColorChk')].every(ch => ch.checked),
+        checkedColors: [...document.querySelectorAll('.roulColorChk:checked')].map(ch => ch.value).sort().join(),
         interval: document.getElementById('roulInterval').value,
         customDisplay: document.getElementById('roulCustom').style.display,
       };
     });
-    ok('R11 full reset restores roulette defaults (std preset, all colors, 1s) after a custom setting',
-      r11.preset === 'std' && r11.allChecked && r11.interval === '1000' && r11.customDisplay === 'none' && r11.before.colors.join() === 'fire,poison',
+    ok('R11 full reset restores roulette defaults (std preset, the initial 6 basic colors, 1s) after a custom setting',
+      r11.preset === 'std' && r11.checkedColors === 'dark,fire,heal,light,water,wood' && r11.interval === '1000' && r11.customDisplay === 'none' && r11.before.colors.join() === 'fire,poison',
       JSON.stringify(r11));
     const u8 = await page.evaluate(() => {
       snapshot = 'KEEP'; tool = { kind: 'mod', value: 'modclear' }; paint(0, 0);
@@ -714,6 +714,195 @@ async function drag(page, from, to, steps) {
     });
     ok('U9 failed bulk operations (wrong color count) keep the undo snapshot',
       u9.afterFillFail === 'KEEP' && u9.afterJinFail === 'KEEP', JSON.stringify(u9));
+    const u10 = await page.evaluate(() => {
+      uneraseAttrs = new Set(['water']); syncUneraseChips();
+      document.getElementById('boardClearBtn').click();
+      const afterBoardReset = [...uneraseAttrs].join();
+      document.querySelector('.sizechip[data-size="5x4"]').click();
+      const afterSizeChange = [...uneraseAttrs].join();
+      document.getElementById('resetBtn').click();
+      const afterFullReset = uneraseAttrs.size;
+      return { afterBoardReset, afterSizeChange, afterFullReset };
+    });
+    ok('U10 unerase selection survives board reset and size change; only the full reset clears it',
+      u10.afterBoardReset === 'water' && u10.afterSizeChange === 'water' && u10.afterFullReset === 0, JSON.stringify(u10));
+    const u11 = await page.evaluate(() => {
+      snapshot = 'KEEP';
+      document.querySelector('.unerasechip[data-attr="fire"]').click();
+      const afterChip = snapshot;
+      document.querySelector('.unerasechip[data-attr="fire"]').click();
+      return { afterChip, attrs: uneraseAttrs.size };
+    });
+    ok('U11 changing the unerase selection invalidates the undo snapshot (it is part of the snapshot)',
+      u11.afterChip === null && u11.attrs === 0, JSON.stringify(u11));
+    const g1 = await page.evaluate(() => {
+      document.getElementById('megumiSel').value = 'only';
+      megumiOnly.clear();
+      const pool = refillPool();
+      let threw = false;
+      try { shuffleBoard(); } catch (e) { threw = true; }
+      megumiOnly = new Set(['fire', 'water']); document.getElementById('megumiSel').value = 'none'; syncSkyFxUI();
+      return { poolLen: pool.length, poolAllBasic: pool.every(t => BASIC.includes(t)), threw };
+    });
+    ok('G1 an emptied "only" set falls back to the 6 basic colors instead of breaking refill/shuffle',
+      g1.poolLen === 6 && g1.poolAllBasic && !g1.threw, JSON.stringify(g1));
+    const s10 = await page.evaluate(() => {
+      document.getElementById('megumiSel').value = 'only';
+      megumiOnly = new Set(['fire', 'water', 'wood']);
+      document.querySelectorAll('.megumiOnlyChk').forEach(ch => ch.checked = megumiOnly.has(ch.value));
+      skyFx = { jammer: true, poison: true, dpoison: true, thorn: true, sblind: true }; syncSkyFxUI();
+      const pool = [...new Set(refillPool())].sort();
+      let bad = 0;
+      for (let i = 0; i < 2000; i++) { const cell = spawnCell(0, 0); if (!['fire', 'water', 'wood'].includes(cell.t)) bad++; }
+      skyFx = { jammer: false, poison: false, dpoison: false, thorn: false, sblind: false }; syncSkyFxUI();
+      document.getElementById('megumiSel').value = 'none';
+      return { pool, bad };
+    });
+    ok('S10 "only" skyfall is absolute: no special drop types fall even with every special toggle on',
+      s10.pool.join() === 'fire,water,wood' && s10.bad === 0, JSON.stringify(s10));
+    const sb1 = await page.evaluate(async () => {
+      skyFx = { jammer: false, poison: false, dpoison: false, thorn: false, sblind: true }; syncSkyFxUI();
+      document.getElementById('ochikonSel').value = 'off';
+      const origRandom = Math.random;
+      Math.random = () => 0; // every spawn receives sblind=1 deterministically
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) board[r][c] = makeCell('fire');
+      render();
+      await resolveBoard();
+      Math.random = origRandom;
+      const freshKept = board.flat().filter(cell => cell && cell.sblind === 1).length;
+      const totalCells = board.flat().filter(Boolean).length;
+      // next turn: the same cells (re-typed into a near-match-free pattern) must tick 1 -> 0
+      skyFx = { jammer: false, poison: false, dpoison: false, thorn: false, sblind: false }; syncSkyFxUI();
+      const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) board[r][c].t = B[(r + 2 * c) % 6];
+      board[0][1].t = 'fire'; board[0][2].t = 'fire'; // row 0 becomes fire,fire,fire (one match)
+      render();
+      await resolveBoard();
+      const stillBlind = board.flat().filter(cell => cell && cell.sblind > 0).length;
+      const fullAfter = board.flat().filter(Boolean).length;
+      return { freshKept, totalCells, stillBlind, fullAfter };
+    });
+    ok('SB1 super-blind counters: drops spawned this turn keep 1 for the next turn; pre-existing drops tick down to 0',
+      sb1.freshKept === sb1.totalCells && sb1.totalCells === 30 && sb1.stillBlind === 0 && sb1.fullAfter === 30, JSON.stringify(sb1));
+    const t1 = await page.evaluate(async () => {
+      document.getElementById('ochikonSel').value = 'on';
+      const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { board[r][c] = makeCell(B[(r + 2 * c) % 6]); pos[r][c] = makePos(); }
+      for (let c = 0; c < 3; c++) pos[0][c].roul = { colors: ORDER.slice(), interval: 1000, idx: 0 };
+      render();
+      const raced = await Promise.race([
+        resolveBoard().then(() => 'resolved'),
+        new Promise(res => setTimeout(() => res('TIMEOUT'), 10000)),
+      ]);
+      const combosShown = parseInt(document.getElementById('stCombo').textContent, 10);
+      document.getElementById('ochikonSel').value = 'off';
+      return { raced, resolving, combosShown };
+    });
+    ok('T1 failsafe: ochikon-on + a synchronized roulette trio terminates instead of looping forever',
+      t1.raced === 'resolved' && t1.resolving === false && t1.combosShown < 99, JSON.stringify(t1));
+    const tm1 = await page.evaluate(() => {
+      const inp = document.getElementById('timeNum');
+      inp.value = '0'; inp.dispatchEvent(new Event('change'));
+      const afterZero = opTime;
+      inp.value = ''; inp.dispatchEvent(new Event('change'));
+      const afterEmpty = opTime;
+      setTime(6);
+      return { afterZero, afterEmpty, restored: opTime };
+    });
+    ok('TM1 operation-time input: 0 clamps to the 1.0s minimum (not 5.0), empty input falls back to the 6.0s default',
+      tm1.afterZero === 1 && tm1.afterEmpty === 6 && tm1.restored === 6, JSON.stringify(tm1));
+    const pc1 = await (async () => {
+      const beforeTypes = await page.evaluate(() => { document.getElementById('shuffleBtn').click(); return board.map(r => r.map(c => c.t).join()).join('/'); });
+      const turnBefore = await page.evaluate(() => turn);
+      const centers = await page.evaluate(() => {
+        const rect = document.getElementById('boardwrap').getBoundingClientRect();
+        const cw = rect.width / cols;
+        const at = (r, c) => ({ x: rect.left + (c + 0.5) * cw, y: rect.top + (r + 0.5) * cw });
+        return { a: at(2, 2), b: at(2, 3) };
+      });
+      const cdp = await page.context().newCDPSession(page);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: centers.a.x, y: centers.a.y, id: 1 }] });
+      await page.waitForTimeout(80);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: centers.b.x, y: centers.b.y, id: 1 }] });
+      await page.waitForTimeout(150);
+      const mid = await page.evaluate(() => ({ held: !!held, moveStarted }));
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+      await page.waitForTimeout(600);
+      const after = await page.evaluate(() => ({ turn, types: board.map(r => r.map(c => c.t).join()).join('/'), held: !!held, resolving }));
+      return { beforeTypes, turnBefore, mid, after };
+    })();
+    ok('PC1 pointercancel annuls the move: no turn increment, the pre-move board is restored, nothing stays held',
+      pc1.mid.held && pc1.mid.moveStarted && pc1.after.turn === pc1.turnBefore && pc1.after.types === pc1.beforeTypes && !pc1.after.held && !pc1.after.resolving,
+      JSON.stringify(pc1));
+    const p05 = await page.evaluate(async () => {
+      for (const rowA of pos) for (const p of rowA) p.roul = null; // earlier tests left roulette cells on this page's board
+      render();
+      const countMutations = ms => new Promise(res => {
+        let n = 0;
+        const mo = new MutationObserver(recs => { for (const r of recs) n += r.addedNodes.length; });
+        mo.observe(document.getElementById('board'), { childList: true });
+        setTimeout(() => { mo.disconnect(); res(n); }, ms);
+      });
+      const idleNoRoul = await countMutations(1200);
+      pos[0][0].roul = { colors: ORDER.slice(), interval: 500, idx: 0 }; render();
+      const withRoul = await countMutations(1200);
+      pos[0][0].roul = null; render();
+      return { idleNoRoul, withRoul };
+    });
+    ok('P05 idle repaints: the roulette clock does not rebuild the board when no roulette cell exists (and still does when one does)',
+      p05.idleNoRoul === 0 && p05.withRoul > 0, JSON.stringify(p05));
+    const p06 = await page.evaluate(() => {
+      snapshot = null; render();
+      const disabledWhenEmpty = document.getElementById('undoBtn').disabled;
+      snapshot = makeSnapshot(); render();
+      const enabledWithSnapshot = !document.getElementById('undoBtn').disabled;
+      document.getElementById('undoBtn').click();
+      const disabledAfterUndo = document.getElementById('undoBtn').disabled;
+      return { disabledWhenEmpty, enabledWithSnapshot, disabledAfterUndo };
+    });
+    ok('P06 the undo button shows its availability (disabled without a snapshot, enabled with one, disabled again after undo)',
+      p06.disabledWhenEmpty && p06.enabledWithSnapshot && p06.disabledAfterUndo, JSON.stringify(p06));
+    const st3 = await page.evaluate(() => {
+      const chks = [...document.querySelectorAll('.roulColorChk')];
+      chks.forEach(ch => ch.checked = ch.value === 'fire');
+      const fire = chks.find(ch => ch.value === 'fire');
+      fire.checked = false;
+      fire.dispatchEvent(new Event('change', { bubbles: true }));
+      const out = { checkedAfter: document.querySelectorAll('.roulColorChk:checked').length, fireChecked: fire.checked };
+      chks.forEach(ch => ch.checked = ORDER.includes(ch.value));
+      return out;
+    });
+    ok('ST3 the roulette custom colors cannot be reduced to zero in the UI (unchecking the last color re-checks it)',
+      st3.checkedAfter === 1 && st3.fireChecked, JSON.stringify(st3));
+    const u12 = await page.evaluate(() => {
+      board[0][0] = makeCell(board[0][0].t); pos[0][0].roul = null; render();
+      snapshot = 'KEEP';
+      tool = { kind: 'drop', value: board[0][0].t };
+      paint(0, 0);
+      const keptAfterSamePaint = snapshot === 'KEEP';
+      board[1][1].thorn = true; render();
+      document.getElementById('bulkClearGimmickBtn').click();
+      const clearedReal = snapshot === null && !board[1][1].thorn;
+      snapshot = 'KEEP';
+      document.getElementById('bulkClearGimmickBtn').click();
+      const keptAfterEmptyClear = snapshot === 'KEEP';
+      snapshot = null;
+      return { keptAfterSamePaint, clearedReal, keptAfterEmptyClear };
+    });
+    ok('U12 no-change edits keep the undo snapshot: repainting the identical plain drop, and clearing an already-clear board; a real clear still discards it',
+      u12.keptAfterSamePaint && u12.clearedReal && u12.keptAfterEmptyClear, JSON.stringify(u12));
+    const b9 = await page.evaluate(async () => {
+      const sel = document.getElementById('ochikonSel'); sel.value = 'off'; sel.dispatchEvent(new Event('change'));
+      const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { board[r][c] = makeCell(B[(r + 2 * c) % 6]); pos[r][c] = makePos(); }
+      board[0][0] = makeCell('bomb'); board[0][1] = makeCell('bomb'); board[0][2] = makeCell('bomb'); board[2][1] = makeCell('bomb');
+      snapshot = null; render();
+      const pre = findMatches().groups.filter(g => g.type === 'bomb').length;
+      await resolveBoard();
+      return { pre, combos: document.getElementById('lrCombo').textContent, dmg: document.getElementById('lrDmg').textContent, bombsLeft: board.flat().filter(cell => cell && cell.t === 'bomb').length };
+    });
+    ok('B9 bomb protection means survival, not a guaranteed combo: an isolated bomb explodes first, the protected trio survives the blast but, separated by the fall, scores no combo (real-game order)',
+      b9.pre === 1 && b9.combos === '0' && b9.dmg === '20%' && b9.bombsLeft === 3, JSON.stringify(b9));
     const o8 = await page.evaluate(() => {
       document.getElementById('ochikonSel').value = 'off';
       document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['fire', 'water']); syncSkyFxUI();
@@ -739,6 +928,19 @@ async function drag(page, from, to, steps) {
     });
     ok('P8 losing pointer capture mid-grab ends the move cleanly (no stuck held state)',
       p8.held === null && p8.activePid === null, JSON.stringify(p8));
+    const d1 = await page.evaluate(() => {
+      const cw = wrapEl.clientWidth / cols, H = cw * rows;
+      held = { r: rows - 1, c: 0 }; heldUid = board[rows - 1][0].uid;
+      lastPointer = { x: -40, y: H + 60 };
+      render();
+      const el = dropNodes.get(heldUid);
+      const nr = el.getBoundingClientRect(), wr = wrapEl.getBoundingClientRect();
+      const rel = { x: Math.round(nr.x - wr.x), y: Math.round(nr.y - wr.y), right: Math.round(nr.x - wr.x + nr.width), bottom: Math.round(nr.y - wr.y + nr.height), boardW: Math.round(wr.width), boardH: Math.round(wr.height) };
+      held = null; heldUid = null; lastPointer = null; render();
+      return rel;
+    });
+    ok('D1 held drop stays fully inside the board when the finger drags beyond the corner',
+      d1.x >= -1 && d1.y >= -1 && d1.right <= d1.boardW + 1 && d1.bottom <= d1.boardH + 1, JSON.stringify(d1));
     ok('R12 no page errors (round-6 fixes)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
     await page.close();
   }
@@ -750,6 +952,17 @@ async function drag(page, from, to, steps) {
     });
     ok('LY1 320px width: header and status fit without horizontal overflow',
       ly.hdrSW <= ly.hdrCW + 1 && ly.stSW <= ly.stCW + 1, JSON.stringify(ly));
+    await page.close();
+  }
+  {
+    const page = await newPage(browser, { width: 280, height: 650 }, true);
+    const ly4 = await page.evaluate(() => {
+      const hdr = document.querySelector('header'), st = document.getElementById('status');
+      return { hdrSW: hdr.scrollWidth, hdrCW: hdr.clientWidth, stSW: st.scrollWidth, stCW: st.clientWidth, docSW: document.documentElement.scrollWidth, iw: innerWidth };
+    });
+    ok('LY4 280px width (foldable cover screen): header, status and document fit without horizontal overflow',
+      ly4.hdrSW <= ly4.hdrCW + 1 && ly4.stSW <= ly4.stCW + 1 && ly4.docSW <= ly4.iw + 1, JSON.stringify(ly4));
+    ok('LY5 no page errors (280px layout)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
     await page.close();
   }
   {
@@ -766,6 +979,95 @@ async function drag(page, from, to, steps) {
       ly2.oy === 'auto' && ly2.megumiVisible, JSON.stringify(ly2));
     ok('LY3 no page errors (landscape layout)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
     await page.close();
+  }
+  {
+    const page = await newPage(browser, { width: 1280, height: 800 }, false);
+    const desk = await page.evaluate(() => {
+      const app = document.getElementById('app').getBoundingClientRect();
+      const wrap = document.getElementById('boardwrap').getBoundingClientRect();
+      return { appW: app.width, wrapW: wrap.width, wrapCenter: wrap.left + wrap.width / 2, appCenter: app.left + app.width / 2 };
+    });
+    ok('LY6 desktop landscape (1280x800): the board stays within the app column and centered',
+      desk.wrapW <= desk.appW + 1 && Math.abs(desk.wrapCenter - desk.appCenter) <= 1, JSON.stringify(desk));
+    ok('LY7 no page errors (desktop layout)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
+    await page.close();
+  }
+  {
+    // settings persistence gets an isolated browser context (its own localStorage)
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const page = await ctx.newPage();
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e)));
+    await page.addInitScript(() => { window.__dialogs = []; window.alert = m => window.__dialogs.push(m); window.prompt = () => 'テスト盤面'; window.confirm = () => true; });
+    await page.goto(APP);
+    await page.waitForTimeout(300);
+    await page.evaluate(() => {
+      setTime(12.5);
+      document.getElementById('ochikonSel').value = 'on';
+      document.getElementById('megumiSel').value = 'only';
+      megumiOnly = new Set(['fire', 'water', 'wood']); syncSkyFxUI();
+      skyFx.poison = true; syncSkyFxUI();
+      uneraseAttrs = new Set(['dark']); syncUneraseChips();
+      document.querySelector('.sizechip[data-size="7x6"]').click();
+      document.getElementById('roulPreset').value = 'custom';
+      document.querySelectorAll('.roulColorChk').forEach(ch => ch.checked = ['fire', 'poison'].includes(ch.value));
+      document.getElementById('roulInterval').value = '500';
+    });
+    await page.waitForTimeout(1400); // the settings saver polls every 1s
+    await page.reload(); await page.waitForTimeout(400);
+    const ps1 = await page.evaluate(() => ({
+      opTime, ochikon: document.getElementById('ochikonSel').value,
+      megumi: document.getElementById('megumiSel').value,
+      megumiOnly: [...megumiOnly].sort().join(), skyPoison: skyFx.poison,
+      unerase: [...uneraseAttrs].join(), size: cols + 'x' + rows,
+      roulPreset: document.getElementById('roulPreset').value,
+      roulColors: [...document.querySelectorAll('.roulColorChk:checked')].map(ch => ch.value).sort().join(),
+      roulInterval: document.getElementById('roulInterval').value,
+    }));
+    ok('PS1 settings (not the board) survive a reload: time, ochikon, megumi+only set, special toggle, unerase, size, roulette preset/colors/interval',
+      ps1.opTime === 12.5 && ps1.ochikon === 'on' && ps1.megumi === 'only' && ps1.megumiOnly === 'fire,water,wood'
+      && ps1.skyPoison === true && ps1.unerase === 'dark' && ps1.size === '7x6'
+      && ps1.roulPreset === 'custom' && ps1.roulColors === 'fire,poison' && ps1.roulInterval === '500',
+      JSON.stringify(ps1));
+    const ps2 = await page.evaluate(() => {
+      window.confirm = () => false;
+      document.getElementById('resetBtn').click();
+      const keptAfterCancel = opTime === 12.5 && cols === 7;
+      window.confirm = () => true;
+      document.getElementById('resetBtn').click();
+      return { keptAfterCancel, afterAccept: { opTime, size: cols + 'x' + rows, megumi: document.getElementById('megumiSel').value } };
+    });
+    ok('PS2 full reset asks for confirmation: cancelling keeps everything, accepting restores the defaults',
+      ps2.keptAfterCancel && ps2.afterAccept.opTime === 6 && ps2.afterAccept.size === '6x5' && ps2.afterAccept.megumi === 'none',
+      JSON.stringify(ps2));
+    ok('PS3 no page errors (settings persistence)', errs.length === 0, errs.slice(0, 2).join(';'));
+    // ST1/ST2: tampered storage must fall back per-item (the app's own saver would
+    // overwrite the tampered value on unload, so swallow padSettingsV1 writes first)
+    const tamper = async obj => {
+      await page.evaluate(o => {
+        localStorage.setItem('padSettingsV1', JSON.stringify(o));
+        const orig = localStorage.setItem.bind(localStorage);
+        localStorage.setItem = (k, v) => { if (k !== 'padSettingsV1') orig(k, v); };
+      }, obj);
+      await page.reload(); await page.waitForTimeout(350);
+    };
+    await tamper({ opTime: 999 });
+    const st1a = await page.evaluate(() => opTime);
+    await tamper({ opTime: -50 });
+    const st1b = await page.evaluate(() => opTime);
+    ok('ST1 an out-of-range stored operation time falls back to the 6.0s default instead of clamping to a boundary',
+      st1a === 6 && st1b === 6, JSON.stringify({ st1a, st1b }));
+    await tamper({ roulPreset: 'custom', roulColors: ['nonesuch'] });
+    const st2 = await page.evaluate(() => ({ checked: document.querySelectorAll('.roulColorChk:checked').length, preset: document.getElementById('roulPreset').value }));
+    ok('ST2 a stored roulette color list with no valid color falls back to the default colors (never a 0-color selection)',
+      st2.checked === 6 && st2.preset === 'custom', JSON.stringify(st2));
+    await tamper({ roulInterval: 500 });
+    const st4a = await page.evaluate(() => document.getElementById('roulInterval').value);
+    await tamper({ roulInterval: '500' });
+    const st4b = await page.evaluate(() => document.getElementById('roulInterval').value);
+    ok('ST4 a numeric stored roulette interval is a type mismatch and falls back to the 1s default, while the string form is honored',
+      st4a === '1000' && st4b === '500', JSON.stringify({ st4a, st4b }));
+    await ctx.close();
   }
 
   console.log(results.join('\n'));
