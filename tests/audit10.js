@@ -493,6 +493,77 @@ async function drag(page, from, to, steps) {
     await page.close();
   }
 
+  /* ===== 13) Round-5 regressions: shuffle validity / palette persistence / roulette entry / pid residue ===== */
+  {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    const sh = await page.evaluate(() => {
+      const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+      const out = {};
+      for (const p of ['firewater', 'lightdark', 'water', 'hazard']) {
+        document.getElementById('megumiSel').value = p;
+        let bad = 0, impure = 0;
+        for (let i = 0; i < 80; i++) {
+          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) board[r][c] = makeCell(B[Math.floor(Math.random() * 6)]);
+          shuffleBoard();
+          if (findMatches().groups.length > 0) bad++;
+          if (p === 'firewater' && board.flat().some(d => d.t !== 'fire' && d.t !== 'water')) impure++;
+        }
+        out[p] = { bad, impure };
+      }
+      document.getElementById('megumiSel').value = 'none';
+      return out;
+    });
+    ok('SH1 shuffle: match-free boards for all profiles (incl. two-color), two-color purity kept',
+      Object.values(sh).every(v => v.bad === 0 && v.impure === 0), JSON.stringify(sh));
+    const pp = await page.evaluate(() => {
+      if (!editMode) document.getElementById('modeBtn').click();
+      buildPalettes();
+      const rp = document.getElementById('roulPreset');
+      rp.value = 'custom'; rp.onchange && rp.onchange();
+      document.querySelectorAll('.roulColorChk').forEach(ch => { ch.checked = (ch.value === 'poison' || ch.value === 'jammer'); });
+      document.getElementById('roulInterval').value = '500';
+      buildPalettes();
+      return { preset: document.getElementById('roulPreset').value, colors: [...document.querySelectorAll('.roulColorChk:checked')].map(x => x.value), interval: document.getElementById('roulInterval').value };
+    });
+    ok('P0 roulette custom settings survive palette rebuilds',
+      pp.preset === 'custom' && pp.colors.join() === 'poison,jammer' && pp.interval === '500', JSON.stringify(pp));
+    const r9 = await page.evaluate(() => {
+      if (editMode) document.getElementById('modeBtn').click();
+      const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { board[r][c] = makeCell(B[(r + 2 * c) % 6]); pos[r][c] = makePos(); }
+      board[4][1] = makeCell('poison');
+      pos[4][2] = Object.assign(makePos(), { roul: { colors: B.slice(), interval: 1000, idx: 0, next: 0 } });
+      render();
+      held = { r: 4, c: 1 }; heldUid = board[4][1].uid;
+      swapHeld(4, 2);
+      const dragIn = board[4][2].t;
+      held = null; heldUid = null;
+      board[3][2] = makeCell('jammer'); board[4][2] = null; render();
+      applyGravity();
+      const fallIn = board[4][2] && board[4][2].t;
+      render();
+      return { dragIn, fallIn };
+    });
+    ok('R9 special drops entering a roulette cell (drag or gravity) convert to fire',
+      r9.dragIn === 'fire' && r9.fallIn === 'fire', JSON.stringify(r9));
+    await page.close();
+  }
+  {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    await setBoard(page, [{ r: 4, c: 0, t: 'fire' }, { r: 4, c: 1, t: 'fire' }, { r: 4, c: 2, t: 'wood' }, { r: 3, c: 2, t: 'fire' }]);
+    const v3 = await page.evaluate(async () => {
+      resolveBoard();
+      const rect = wrapEl.getBoundingClientRect();
+      const ev = new PointerEvent('pointerdown', { pointerId: 99, bubbles: true, clientX: rect.left + rect.width * 0.25, clientY: rect.top + rect.height * 0.5 });
+      wrapEl.dispatchEvent(ev);
+      const during = { resolving, activePid };
+      return during;
+    });
+    ok('V3 pointerdown during resolution does not capture activePid', v3.resolving && v3.activePid === null, JSON.stringify(v3));
+    await page.waitForTimeout(2400);
+    await page.close();
+  }
+
   console.log(results.join('\n'));
   const fails = results.filter(r => r.startsWith('FAIL')).length;
   console.log('TOTAL: ' + results.length + ' checks, ' + fails + ' failures');
