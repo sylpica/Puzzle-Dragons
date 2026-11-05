@@ -55,7 +55,7 @@ async function drag(page, from, to, steps) {
     const st = await page.evaluate(() => ({
       nodes: document.querySelectorAll('.dnode').length,
       time: document.getElementById('stTime').textContent,
-      gimmick: board.flat().some(d => d.t !== 'fire' && d.t !== 'water' && d.t !== 'wood' && d.t !== 'light' && d.t !== 'dark' && d.t !== 'heal' || d.plus || d.lock || d.thorn || d.blind || d.sblind > 0 || d.unerase)
+      gimmick: board.flat().some(d => d.t !== 'fire' && d.t !== 'water' && d.t !== 'wood' && d.t !== 'light' && d.t !== 'dark' && d.t !== 'heal' || d.plus || d.lock || d.thorn || d.blind || d.sblind > 0)
         || pos.flat().some(p => p.cloud > 0 || p.tape || p.roul),
       matches: findMatches().groups.length,
       saveUi: !!document.getElementById('saveBtn') || !!document.getElementById('boardCode'),
@@ -230,26 +230,34 @@ async function drag(page, from, to, steps) {
       document.getElementById('ochikonSel').value = 'on';
       wm = 0; for (let i = 0; i < 200; i++) { if (fill() > 0) wm++; }
       res.onBoards = wm;
-      document.getElementById('megumiSel').value = 'firewater';
+      document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['fire', 'water']); syncSkyFxUI();
       let bad = 0; for (let i = 0; i < 100; i++) { fill(); const m = countTypes(); for (const k in m) if (k !== 'fire' && k !== 'water') bad += m[k]; }
       res.pairBad = bad;
       document.getElementById('megumiSel').value = 'water';
       const tot = {}; for (let i = 0; i < 100; i++) { fill(); const m = countTypes(); for (const k in m) tot[k] = (tot[k] || 0) + m[k]; }
       res.boostWater = (tot.water || 0) / 3000;
-      document.getElementById('megumiSel').value = 'hazard';
-      const tot2 = {}; let thorn = 0;
-      for (let i = 0; i < 120; i++) { fill(); const m = countTypes(); for (const k in m) tot2[k] = (tot2[k] || 0) + m[k]; for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (board[r][c].thorn) thorn++; }
-      res.hazPoison = (tot2.poison || 0) / 3600; res.hazThorn = thorn / 3600;
+      document.getElementById('megumiSel').value = 'none';
+      skyFx.poison = true;
+      const tot2 = {}; for (let i = 0; i < 120; i++) { fill(); const m = countTypes(); for (const k in m) tot2[k] = (tot2[k] || 0) + m[k]; }
+      res.poiShare = (tot2.poison || 0) / 3600; res.poiJammer = (tot2.jammer || 0) / 3600; res.poiDpoi = (tot2.dpoison || 0) / 3600;
+      skyFx.poison = false; skyFx.thorn = true;
+      let thorn = 0; for (let i = 0; i < 120; i++) { fill(); for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (board[r][c].thorn) thorn++; }
+      res.thornShare = thorn / 3600;
+      skyFx.thorn = false; skyFx.sblind = true;
+      fill(); res.allSblind = board.flat().every(d => d.sblind === 3);
+      skyFx.sblind = false;
       document.getElementById('ochikonSel').value = 'off'; document.getElementById('megumiSel').value = 'none';
       newBoard(true); render();
       return res;
     });
     ok('O1 ochikon OFF: zero skyfall matches in 200 refilled boards', stats.offBoards === 0, JSON.stringify(stats.offBoards));
     ok('O2 ochikon ON: skyfall matches occur naturally', stats.onBoards > 10, JSON.stringify(stats.onBoards));
-    ok('O3 fire/water-only megumi: no other types fall', stats.pairBad === 0, JSON.stringify(stats.pairBad));
+    ok('O3 custom-only megumi (fire+water): no other types fall', stats.pairBad === 0, JSON.stringify(stats.pairBad));
     ok('O4 water-boost megumi: water share ~3/8', stats.boostWater > 0.32 && stats.boostWater < 0.44, stats.boostWater.toFixed(3));
-    ok('O5 hazard megumi: poison ~20%, thorn ~5%', Math.abs(stats.hazPoison - 0.20) <= 0.035 && Math.abs(stats.hazThorn - 0.05) <= 0.02,
-      'poison=' + stats.hazPoison.toFixed(3) + ' thorn=' + stats.hazThorn.toFixed(3));
+    ok('O5 poison skyfall toggle alone: poison ~25%, no jammer/dpoison mixed in', Math.abs(stats.poiShare - 0.25) <= 0.035 && stats.poiJammer === 0 && stats.poiDpoi === 0,
+      'poison=' + stats.poiShare.toFixed(3));
+    ok('O6 thorn skyfall toggle alone: ~15% of spawns carry thorn', Math.abs(stats.thornShare - 0.15) <= 0.03, stats.thornShare.toFixed(3));
+    ok('O7 super-blind skyfall toggle: every spawn is super-blind (sblind=3)', stats.allSblind === true, JSON.stringify(stats.allSblind));
     await page.close();
   }
 
@@ -341,10 +349,11 @@ async function drag(page, from, to, steps) {
     const bc = await page.evaluate(() => {
       board[0][0].plus = true; board[0][1].lock = true; board[1][0].thorn = true; board[2][2].sblind = 3;
       pos[0][2].cloud = 2; pos[1][3].tape = true; pos[2][0].roul = { colors: ['fire', 'water'], interval: 1000, idx: 0, next: 0 };
+      uneraseAttrs.add('fire');
       const typesBefore = JSON.stringify(board.map(r => r.map(d => d.t)));
       document.getElementById('bulkClearGimmickBtn').click();
-      const left = board.flat().some(d => d.plus || d.weak || d.lock || d.thorn || d.blind || d.sblind > 0 || d.unerase)
-        || pos.flat().some(p => p.cloud > 0 || p.tape || p.roul);
+      const left = board.flat().some(d => d.plus || d.weak || d.lock || d.thorn || d.blind || d.sblind > 0)
+        || pos.flat().some(p => p.cloud > 0 || p.tape || p.roul) || uneraseAttrs.size > 0;
       return { left, typesSame: JSON.stringify(board.map(r => r.map(d => d.t))) === typesBefore };
     });
     ok('U3 bulk state clear: all states+gimmicks cleared, drop types unchanged', !bc.left && bc.typesSame, JSON.stringify(bc));
@@ -352,7 +361,7 @@ async function drag(page, from, to, steps) {
     // sanitize guards
     const san = await page.evaluate(() => {
       const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
-      const mk = () => { const bd = [], ps = []; let u = 5000; for (let r = 0; r < 5; r++) { bd.push([]); ps.push([]); for (let c = 0; c < 6; c++) { bd[r].push({ uid: u++, t: B[(r + 2 * c) % 6], plus: false, weak: false, lock: false, thorn: false, blind: false, sblind: 0, unerase: false }); ps[r].push({ cloud: 0, tape: false, roul: null }); } } return { cols: 6, rows: 5, board: bd, pos: ps }; };
+      const mk = () => { const bd = [], ps = []; let u = 5000; for (let r = 0; r < 5; r++) { bd.push([]); ps.push([]); for (let c = 0; c < 6; c++) { bd[r].push({ uid: u++, t: B[(r + 2 * c) % 6], plus: false, weak: false, lock: false, thorn: false, blind: false, sblind: 0 }); ps[r].push({ cloud: 0, tape: false, roul: null }); } } return { cols: 6, rows: 5, board: bd, pos: ps }; };
       const good = mk();
       const dup = mk(); dup.board[0][1].uid = dup.board[0][0].uid;
       const badIdx = mk(); badIdx.pos[0][0].roul = { colors: ['fire', 'water'], interval: 1000, idx: 8, next: 0 };
@@ -484,9 +493,16 @@ async function drag(page, from, to, steps) {
   }
 
   /* ===== 12) FZ: ochikon OFF — full resolutions across all megumi profiles must rest full & match-free ===== */
-  for (const prof of ['none', 'hazard', 'water', 'firewater', 'lightdark']) {
+  for (const prof of ['none', 'water', 'only2', 'only3', 'fxmix']) {
     const page = await newPage(browser, { width: 375, height: 760 }, true);
-    await page.evaluate(p => { document.getElementById('ochikonSel').value = 'off'; document.getElementById('megumiSel').value = p; }, prof);
+    await page.evaluate(p => {
+      document.getElementById('ochikonSel').value = 'off';
+      if (p === 'only2') { document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['fire', 'water']); }
+      else if (p === 'only3') { document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['light', 'dark', 'heal']); }
+      else if (p === 'fxmix') { document.getElementById('megumiSel').value = 'none'; skyFx.poison = true; skyFx.jammer = true; }
+      else document.getElementById('megumiSel').value = p;
+      syncSkyFxUI();
+    }, prof);
     let bad = 0, details = '';
     for (let i = 0; i < 12; i++) {
       await page.evaluate(() => {
@@ -515,21 +531,30 @@ async function drag(page, from, to, steps) {
     const sh = await page.evaluate(() => {
       const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
       const out = {};
-      for (const p of ['firewater', 'lightdark', 'water', 'hazard']) {
-        document.getElementById('megumiSel').value = p;
+      const configs = {
+        only2: () => { document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['fire', 'water']); },
+        only3: () => { document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['water', 'wood', 'light']); },
+        only4: () => { document.getElementById('megumiSel').value = 'only'; megumiOnly = new Set(['fire', 'water', 'wood', 'dark']); },
+        water: () => { document.getElementById('megumiSel').value = 'water'; },
+        fxmix: () => { document.getElementById('megumiSel').value = 'none'; skyFx.poison = true; skyFx.jammer = true; },
+      };
+      for (const p of Object.keys(configs)) {
+        Object.keys(skyFx).forEach(k => skyFx[k] = false);
+        configs[p](); syncSkyFxUI();
         let bad = 0, impure = 0;
         for (let i = 0; i < 80; i++) {
           for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) board[r][c] = makeCell(B[Math.floor(Math.random() * 6)]);
           shuffleBoard();
           if (findMatches().groups.length > 0) bad++;
-          if (p === 'firewater' && board.flat().some(d => d.t !== 'fire' && d.t !== 'water')) impure++;
+          if (p === 'only2' && board.flat().some(d => d.t !== 'fire' && d.t !== 'water')) impure++;
         }
         out[p] = { bad, impure };
       }
-      document.getElementById('megumiSel').value = 'none';
+      Object.keys(skyFx).forEach(k => skyFx[k] = false);
+      document.getElementById('megumiSel').value = 'none'; syncSkyFxUI();
       return out;
     });
-    ok('SH1 shuffle: match-free boards for all profiles (incl. two-color), two-color purity kept',
+    ok('SH1 shuffle: match-free boards for all profiles (only 2/3/4 colors, boost, fx mix), only-2 purity kept',
       Object.values(sh).every(v => v.bad === 0 && v.impure === 0), JSON.stringify(sh));
     const pp = await page.evaluate(() => {
       if (!editMode) document.getElementById('modeBtn').click();
@@ -577,6 +602,129 @@ async function drag(page, from, to, steps) {
     });
     ok('V3 pointerdown during resolution does not capture activePid', v3.resolving && v3.activePid === null, JSON.stringify(v3));
     await page.waitForTimeout(2400);
+    await page.close();
+  }
+
+  /* ===== 14) unerase-by-attribute + megumi custom-only validation ===== */
+  {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    // NE1: fire set unerasable -> a fire match does not clear and does not count as a combo; water still clears
+    await setBoard(page, [
+      { r: 4, c: 0, t: 'fire' }, { r: 4, c: 1, t: 'fire' }, { r: 4, c: 2, t: 'fire' },
+      { r: 0, c: 0, t: 'water' }, { r: 0, c: 1, t: 'water' }, { r: 0, c: 2, t: 'water' },
+    ]);
+    const ne1 = await page.evaluate(async () => {
+      uneraseAttrs = new Set(['fire']); render();
+      const groupsBefore = findMatches().groups.map(g => g.type);
+      await resolveBoard();
+      return {
+        bottom: [board[4][0].t, board[4][1].t, board[4][2].t],
+        lr: document.getElementById('lrCombo').textContent,
+        groupsBefore,
+      };
+    });
+    ok('NE1 unerasable attribute: fire forms no match group and stays on the board; other attributes clear',
+      ne1.bottom.join() === 'fire,fire,fire' && ne1.lr !== '0' && ne1.groupsBefore.includes('water') && !ne1.groupsBefore.includes('fire'), JSON.stringify(ne1));
+    // NE2: the attribute chips toggle the set and the badge shows on that attribute only
+    const ne2 = await page.evaluate(() => {
+      uneraseAttrs = new Set(); syncUneraseChips(); render();
+      document.querySelector('.unerasechip[data-attr="water"]').click();
+      const on = [...uneraseAttrs];
+      const coord = t => { for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (board[r][c].t === t) return [r, c]; return null; };
+      const badgeAt = ([r, c]) => dropNodes.get(board[r][c].uid).firstChild.innerHTML.includes('🚫');
+      const waterBadge = badgeAt(coord('water'));
+      const fireBadge = badgeAt(coord('fire'));
+      document.querySelector('.unerasechip[data-attr="water"]').click();
+      return { on, waterBadge, fireBadge, off: uneraseAttrs.size };
+    });
+    ok('NE2 unerase chips toggle the attribute set; 🚫 badge appears on that attribute only',
+      ne2.on.join() === 'water' && ne2.waterBadge && !ne2.fireBadge && ne2.off === 0, JSON.stringify(ne2));
+    // MG1: the "only" picker enforces 2..4 colors
+    const mg1 = await page.evaluate(() => {
+      megumiOnly = new Set(['fire', 'water']); syncSkyFxUI();
+      const chk = v => document.querySelector('.megumiOnlyChk[value="' + v + '"]');
+      chk('wood').click(); chk('light').click();
+      const at4 = [...megumiOnly].sort().join();
+      chk('dark').click();
+      const still4 = megumiOnly.size === 4 && !megumiOnly.has('dark') && chk('dark').checked === false;
+      chk('light').click(); chk('wood').click();
+      const at2 = [...megumiOnly].sort().join();
+      chk('fire').click();
+      const still2 = megumiOnly.size === 2 && megumiOnly.has('fire') && chk('fire').checked === true;
+      return { at4, still4, at2, still2 };
+    });
+    ok('MG1 megumi "only" picker enforces 2..4 colors', mg1.at4 === 'fire,light,water,wood' && mg1.still4 && mg1.at2 === 'fire,water' && mg1.still2, JSON.stringify(mg1));
+    ok('NE3 no page errors (unerase/megumi-custom)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
+    await page.close();
+  }
+
+  /* ===== 15) round-6 fixes: roulette bake on edit paths, reset restores roulette, capture loss, small/landscape layout ===== */
+  {
+    const page = await newPage(browser, { width: 375, height: 760 }, true);
+    const r10 = await page.evaluate(() => {
+      const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+      pos[2][2] = Object.assign(makePos(), { roul: { colors: B.slice(), interval: 1000, idx: 0, next: 0 } });
+      tool = { kind: 'drop', value: 'poison' }; paint(2, 2);
+      const painted = board[2][2].t;
+      bulkSel = new Set(['poison']); document.getElementById('bulkFillBtn').click();
+      const bulkRoul = board[2][2].t, bulkPlain = board[0][0].t;
+      return { painted, bulkRoul, bulkPlain };
+    });
+    ok('R10 painting/filling a special drop onto a roulette cell converts it to fire (paint + bulk fill)',
+      r10.painted === 'fire' && r10.bulkRoul === 'fire' && r10.bulkPlain === 'poison', JSON.stringify(r10));
+    const r11 = await page.evaluate(() => {
+      document.getElementById('roulPreset').value = 'custom';
+      document.getElementById('roulPreset').onchange();
+      document.querySelectorAll('.roulColorChk').forEach(ch => { ch.checked = (ch.value === 'fire' || ch.value === 'poison'); });
+      document.getElementById('roulInterval').value = '2000';
+      const before = getRoulPreset();
+      document.getElementById('resetBtn').click();
+      return {
+        before: { preset: document.getElementById('roulPreset').value, colors: before.colors, interval: before.interval },
+        preset: document.getElementById('roulPreset').value,
+        allChecked: [...document.querySelectorAll('.roulColorChk')].every(ch => ch.checked),
+        interval: document.getElementById('roulInterval').value,
+        customDisplay: document.getElementById('roulCustom').style.display,
+      };
+    });
+    ok('R11 full reset restores roulette defaults (std preset, all colors, 1s) after a custom setting',
+      r11.preset === 'std' && r11.allChecked && r11.interval === '1000' && r11.customDisplay === 'none' && r11.before.colors.join() === 'fire,poison',
+      JSON.stringify(r11));
+    const p8 = await page.evaluate(async () => {
+      activePid = 99; held = { r: 0, c: 0 }; heldUid = board[0][0].uid; moveStarted = false;
+      const ev = new Event('lostpointercapture'); ev.pointerId = 99;
+      wrapEl.dispatchEvent(ev);
+      await new Promise(r => setTimeout(r, 30));
+      return { held, activePid };
+    });
+    ok('P8 losing pointer capture mid-grab ends the move cleanly (no stuck held state)',
+      p8.held === null && p8.activePid === null, JSON.stringify(p8));
+    ok('R12 no page errors (round-6 fixes)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
+    await page.close();
+  }
+  {
+    const page = await newPage(browser, { width: 320, height: 568 }, true);
+    const ly = await page.evaluate(() => {
+      const hdr = document.querySelector('header'), st = document.getElementById('status');
+      return { hdrSW: hdr.scrollWidth, hdrCW: hdr.clientWidth, stSW: st.scrollWidth, stCW: st.clientWidth };
+    });
+    ok('LY1 320px width: header and status fit without horizontal overflow',
+      ly.hdrSW <= ly.hdrCW + 1 && ly.stSW <= ly.stCW + 1, JSON.stringify(ly));
+    await page.close();
+  }
+  {
+    const page = await newPage(browser, { width: 844, height: 390 }, true);
+    const ly2 = await page.evaluate(() => {
+      const stage = document.getElementById('stage');
+      const oy = getComputedStyle(stage).overflowY;
+      stage.scrollTop = stage.scrollHeight;
+      const sr = stage.getBoundingClientRect();
+      const mr = document.getElementById('megumiSel').getBoundingClientRect();
+      return { oy, sh: stage.scrollHeight, ch: stage.clientHeight, megumiVisible: mr.bottom <= sr.bottom + 2 && mr.top >= sr.top - 2 };
+    });
+    ok('LY2 landscape (844x390): stage scrolls internally and the last play control is reachable',
+      ly2.oy === 'auto' && ly2.megumiVisible, JSON.stringify(ly2));
+    ok('LY3 no page errors (landscape layout)', page.errs.length === 0, page.errs.slice(0, 2).join(';'));
     await page.close();
   }
 
