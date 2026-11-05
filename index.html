@@ -8,13 +8,15 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;background:#17130f;color:#f5efe6;font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif}
 #app{max-width:480px;margin:0 auto;padding:0}
+#first{display:flex;flex-direction:column;height:100vh;height:100dvh}
+#stage{flex:1;min-height:20px;background:radial-gradient(ellipse at 50% 110%,#2e2145 0%,#1a1426 55%,#17130f 100%)}
 header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#241b12}
 header h1{font-size:15px;margin:0;letter-spacing:.05em}
 
 .modebtn{border:1px solid #a97c2f;background:#3a2a16;color:#ffd97a;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700}
 .modebtn.edit{background:#7a1f1f;color:#fff;border-color:#c0392b}
-#status{display:flex;gap:6px;flex-wrap:wrap;padding:6px 8px;background:#1e1710;font-size:12px}
-#status .pill{background:#2e2318;border-radius:999px;padding:3px 9px;white-space:nowrap}
+#status{display:flex;gap:4px;flex-wrap:nowrap;padding:5px 6px;background:#1e1710;font-size:11px;overflow:hidden}
+#status .pill{background:#2e2318;border-radius:999px;padding:2px 7px;white-space:nowrap}
 #status .pill b{color:#ffd97a}
 #timerwrap{height:8px;background:#332619;position:relative}
 #timerbar{height:100%;width:100%;background:linear-gradient(90deg,#57d977,#ffd94d,#ff5d5d);transition:width .05s linear}
@@ -73,6 +75,7 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
 </head>
 <body>
 <div id="app">
+<div id="first">
 <header>
   <h1>パズドラ パズル練習</h1>
   <button id="modeBtn" class="modebtn">✏️ 編集モード</button>
@@ -82,10 +85,12 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
   <span class="pill">コンボ <b id="stCombo">0</b></span>
   <span class="pill">最大 <b id="stMax">0</b></span>
   <span class="pill">残り時間 <b id="stTime">5.0</b>秒</span>
-  <span class="pill">被ダメージ累計 <b id="stDmg">0%</b></span>
+  <span class="pill">被ダメ <b id="stDmg">0%</b></span>
 </div>
+<div id="stage"></div>
 <div id="timerwrap"><div id="timerbar"></div></div>
 <div id="boardwrap"><div id="board"></div></div>
+</div>
 
 <div class="panel" id="playPanel">
   <div class="row">
