@@ -147,7 +147,7 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
 
 <footer>
   <p>遊び方：ドロップを掴んでなぞると、そのまま入れ替わりながら動かせます。指を離すか制限時間になるとコンボ判定が始まります。編集は右上のボタンから切り替えられます。</p>
-  <p>仕様メモ（本アプリの再現範囲）：落ちコンは常に無し（新しく落ちてくるドロップではコンボが成立しないよう補充を調整しています。自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲・超暗闇はターン経過で薄れます。ダメージ表示は割合のみで、体力ゲージは付けていません。</p>
+  <p>仕様メモ（本アプリの再現範囲）：落ちコンは常に無し（新しく落ちてくるドロップではコンボが成立しないよう補充を調整しています。自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲・超暗闇はターン経過で薄れます。ロックされたドロップは揃えれば通常どおり消え、本アプリでは簡略ルールとしてL字消しで盤面全体のロックが外れます。ダメージ表示は割合のみで、体力ゲージは付けていません。</p>
   <p>盤面の大きさ：実機スクリーンショット複数枚の実測に基づき、盤面は画面幅いっぱい（左右マージンなし）、1マスは正方形、盤面は画面下端に接するレイアウトにしています。非公式のファンメイド練習アプリです。</p>
 </footer>
 </div>
@@ -396,7 +396,7 @@ boardEl.addEventListener("pointerdown",e=>{
  if(editMode){paint(p.r,p.c);editDrag=true;boardEl.setPointerCapture(e.pointerId);return}
  if(resolving)return;
  if(pos[p.r][p.c].tape)return;
- snapshot=JSON.stringify({board,pos,turn});
+ snapshot=JSON.stringify({board,pos,turn,totalDmg,dmgEntries});
  held={r:p.r,c:p.c};moveStarted=false;
  boardEl.setPointerCapture(e.pointerId);
  render();
@@ -406,20 +406,32 @@ boardEl.addEventListener("pointermove",e=>{
  if(!held||resolving)return;
  const p=cellFromEvent(e);if(!p)return;
  if(p.r===held.r&&p.c===held.c)return;
- if(pos[p.r][p.c].tape)return;
+ // walk cell-by-cell from held to target so fast flicks cannot skip cells;
+ // a tape cell blocks the path (the held drop stops before it)
+ let guard=0;
+ while((held.r!==p.r||held.c!==p.c)&&guard++<24){
+   let nr=held.r,nc=held.c;
+   if(Math.abs(p.c-held.c)>=Math.abs(p.r-held.r)&&held.c!==p.c)nc+=Math.sign(p.c-held.c);
+   else if(held.r!==p.r)nr+=Math.sign(p.r-held.r);
+   else nc+=Math.sign(p.c-held.c);
+   if(pos[nr][nc].tape)break;
+   swapHeld(nr,nc);
+ }
+});
+function swapHeld(nr,nc){
  // swap held with target
- const a=board[held.r][held.c],b=board[p.r][p.c];
+ const a=board[held.r][held.c],b=board[nr][nc];
  if(b.thorn)thornsThisMove++;
  if(b.blind)b.blind=false;
  // roulette: a drop leaving a roulette cell keeps the color it showed
- const pa=pos[held.r][held.c],pb=pos[p.r][p.c];
+ const pa=pos[held.r][held.c],pb=pos[nr][nc];
  if(pa.roul)a.t=effType(held.r,held.c);
- if(pb.roul)b.t=effType(p.r,p.c);
- board[held.r][held.c]=b;board[p.r][p.c]=a;
- held={r:p.r,c:p.c};
+ if(pb.roul)b.t=effType(nr,nc);
+ board[held.r][held.c]=b;board[nr][nc]=a;
+ held={r:nr,c:nc};
  if(!moveStarted){moveStarted=true;startTimer()}
  render();
-});
+}
 async function endMove(){
  if(!held)return;
  held=null;stopTimer();
@@ -448,6 +460,7 @@ setInterval(()=>{
  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
    const p=pos[r][c];
    if(p.roul){
+     if(resolving||held){p.roul.next=now+p.roul.interval;continue}
      if(!p.roul.next)p.roul.next=now+p.roul.interval;
      if(now>=p.roul.next){p.roul.idx=(p.roul.idx+1)%p.roul.colors.length;p.roul.next=now+p.roul.interval;changed=true}
    }
@@ -457,7 +470,7 @@ setInterval(()=>{
 /* ---------- editing ---------- */
 function paint(r,c){
  const cell=board[r][c],p=pos[r][c];
- if(tool.kind==="drop"){board[r][c]=makeCell(tool.value);board[r][c].plus=cell.plus&&false}
+ if(tool.kind==="drop"){board[r][c]=makeCell(tool.value)}
  else if(tool.kind==="mod"){
    if(tool.value==="plus")cell.plus=!cell.plus;
    else if(tool.value==="weak")cell.weak=!cell.weak;
@@ -517,18 +530,19 @@ function buildPalettes(){
 }
 /* controls */
 $("modeBtn").onclick=()=>{
+ if(resolving)return;
  editMode=!editMode;
  $("editPanel").style.display=editMode?"block":"none";
  $("modeBtn").textContent=editMode?"▶️ プレイに戻る":"✏️ 編集モード";
  $("modeBtn").classList.toggle("edit",editMode);
  held=null;stopTimer();render();
 };
-document.querySelectorAll(".sizechip").forEach(b=>b.onclick=()=>{
+document.querySelectorAll(".sizechip").forEach(b=>b.onclick=()=>{if(resolving)return;
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.remove("on"));b.classList.add("on");
  const [c,r]=b.dataset.size.split("x").map(Number);cols=c;rows=r;newBoard(true);render();
 });
 $("shuffleBtn").onclick=()=>{if(!resolving)shuffleBoard()};
-$("undoBtn").onclick=()=>{if(snapshot&&!resolving){const s=JSON.parse(snapshot);board=s.board;pos=s.pos;turn=s.turn;snapshot=null;render()}};
+$("undoBtn").onclick=()=>{if(snapshot&&!resolving){const s=JSON.parse(snapshot);board=s.board;pos=s.pos;turn=s.turn;totalDmg=s.totalDmg||0;dmgEntries=s.dmgEntries||[];$("dmglog").innerHTML=dmgEntries.length?dmgEntries.join("<br>"):"まだダメージを受けていません。";$("stCombo").textContent=0;snapshot=null;render()}};
 $("resetDmgBtn").onclick=()=>{totalDmg=0;dmgEntries=[];$("dmglog").textContent="まだダメージを受けていません。";render()};
 $("bulkFillBtn").onclick=()=>{
  if(bulkSel.size!==1){alert("全マス変更は色を1つだけ選んでください（複数色は「陣にする」を使ってください）");return}
