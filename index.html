@@ -525,7 +525,7 @@ $("modeBtn").onclick=()=>{
 };
 document.querySelectorAll(".sizechip").forEach(b=>b.onclick=()=>{
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.remove("on"));b.classList.add("on");
- const [c,r]=b.dataset.size.split("x").map(Number);cols=c;rows=r;newBoard(false);render();
+ const [c,r]=b.dataset.size.split("x").map(Number);cols=c;rows=r;newBoard(true);render();
 });
 $("shuffleBtn").onclick=()=>{if(!resolving)shuffleBoard()};
 $("undoBtn").onclick=()=>{if(snapshot&&!resolving){const s=JSON.parse(snapshot);board=s.board;pos=s.pos;turn=s.turn;snapshot=null;render()}};
@@ -547,7 +547,7 @@ $("bulkClearGimmickBtn").onclick=()=>{
  pos.forEach(rowA=>rowA.forEach(p=>{p.cloud=0;p.tape=false;p.roul=null}));
  render();
 };
-$("boardClearBtn").onclick=()=>{newBoard(false);render()};
+$("boardClearBtn").onclick=()=>{newBoard(true);render()};
 function refreshSaveList(){
  const all=JSON.parse(localStorage.getItem("padSaves")||"{}");
  const sel=$("saveList");sel.innerHTML="<option value=''>保存した盤面…</option>";
@@ -581,7 +581,7 @@ function setTime(v){
 $("timeNum").onchange=e=>setTime(parseFloat(e.target.value)||5);
 $("timeRange").oninput=e=>setTime(parseFloat(e.target.value));
 window.addEventListener("resize",()=>render());
-newBoard(false);
+newBoard(true);
 buildPalettes();
 refreshSaveList();
 render();
