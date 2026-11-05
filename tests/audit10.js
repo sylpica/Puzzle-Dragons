@@ -309,6 +309,22 @@ async function drag(page, from, to, steps) {
     await page.click('#undoBtn'); await page.waitForTimeout(150);
     const u = await page.evaluate(() => ({ sig: JSON.stringify(board.map(r => r.map(d => d.t))), turn, lr: document.getElementById('lrCombo').textContent }));
     ok('U1 undo restores the pre-move board and displays', u.sig === sig0 && u.turn === 0 && u.lr === '-', 'turn=' + u.turn + ' lr=' + u.lr);
+    // a tap that never moves a drop must not consume the undo snapshot
+    await drag(page, [0, 0], [0, 1]);
+    await page.waitForTimeout(2400);
+    await drag(page, [4, 5], [4, 5]);
+    await page.waitForTimeout(200);
+    await page.click('#undoBtn'); await page.waitForTimeout(150);
+    const u6 = await page.evaluate(() => ({ sig: JSON.stringify(board.map(r => r.map(d => d.t))), turn }));
+    ok('U6 tap without moving keeps undo: still restores the pre-move board', u6.sig === sig0 && u6.turn === 0, 'turn=' + u6.turn);
+    // opening/closing edit mode without painting must not consume the undo snapshot
+    await drag(page, [0, 0], [0, 1]);
+    await page.waitForTimeout(2400);
+    await page.click('#modeBtn'); await page.waitForTimeout(120);
+    await page.click('#modeBtn'); await page.waitForTimeout(120);
+    await page.click('#undoBtn'); await page.waitForTimeout(150);
+    const u7 = await page.evaluate(() => ({ sig: JSON.stringify(board.map(r => r.map(d => d.t))), turn }));
+    ok('U7 mode toggle without edits keeps undo: still restores the pre-move board', u7.sig === sig0 && u7.turn === 0, 'turn=' + u7.turn);
     // state reset keeps the board
     await drag(page, [0, 0], [0, 1]);
     await page.waitForTimeout(2400);
