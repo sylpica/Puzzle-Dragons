@@ -97,6 +97,7 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
   <h1>パズドラ パズル練習</h1>
   <div class="hbtns">
     <button id="resetBtn" class="modebtn reset">↺ 設定リセット</button>
+    <button id="stateResetBtn" class="modebtn">🔄 状態リセット</button>
     <button id="modeBtn" class="modebtn">✏️ 編集モード</button>
   </div>
 </header>
@@ -124,16 +125,15 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
     <input type="number" id="timeNum" min="1" max="200" step="0.1" value="6.0" style="width:74px">
     <span style="font-size:12px">秒</span>
     <input type="range" id="timeRange" min="1" max="200" step="0.1" value="6">
-    <label><input type="checkbox" id="skyfallChk"> 目覚め（毒・お邪魔・トゲが落ちる）</label>
+    <label>落ちコン <select id="ochikonSel"><option value="off" selected>なし</option><option value="on">あり</option></select></label>
+    <label>目覚め <select id="megumiSel"><option value="none" selected>なし（6色均等）</option><option value="hazard">毒・お邪魔・トゲ</option><option value="water">水多め</option><option value="fire">火多め</option><option value="wood">木多め</option><option value="light">光多め</option><option value="dark">闇多め</option><option value="heal">回復多め</option><option value="firewater">火・水のみ</option><option value="waterwood">水・木のみ</option><option value="woodfire">木・火のみ</option><option value="lightdark">光・闇のみ</option></select></label>
   </div>
   </div>
   <div id="stageEdit" style="display:none">
     <div class="etabs">
       <button class="etab on" data-tab="drop">ドロップ</button>
       <button class="etab" data-tab="mod">状態</button>
-      <button class="etab" data-tab="pos">マス</button>
       <button class="etab" data-tab="bulk">一括</button>
-      <button class="etab" data-tab="save">保存</button>
     </div>
     <div class="etabpage" id="tab-drop">
       <h3>ドロップ（盤面をタップ／なぞって配置）</h3>
@@ -142,14 +142,15 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
     <div class="etabpage" id="tab-mod" style="display:none">
       <h3>ドロップの状態（盤面をタップで付け外し）</h3>
       <div class="row" id="modPalette"></div>
-    </div>
-    <div class="etabpage" id="tab-pos" style="display:none">
       <h3>マスのギミック（盤面をタップで付け外し）</h3>
       <div class="row" id="posPalette"></div>
       <div class="row">
         <label>ルーレット設定</label>
         <select id="roulPreset"></select>
         <span id="roulCustom" style="display:none"></span>
+      </div>
+      <div class="row">
+        <button class="btn danger" id="bulkClearGimmickBtn">🧹 全状態クリア（状態＋マスのギミックを全部消す）</button>
       </div>
     </div>
     <div class="etabpage" id="tab-bulk" style="display:none">
@@ -160,26 +161,8 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
         <button class="btn primary" id="bulkJinBtn">陣にする（選んだ色をランダム配置）</button>
       </div>
       <div class="row">
-        <button class="btn" id="bulkClearGimmickBtn">全ギミック解除</button>
         <button class="btn danger" id="boardClearBtn">盤面リセット</button>
       </div>
-    </div>
-    <div class="etabpage" id="tab-save" style="display:none">
-      <h3>盤面の保存（このブラウザ内）</h3>
-      <div class="row">
-        <button class="btn" id="saveBtn">💾 保存する</button>
-        <select id="saveList"><option value="">保存した盤面…</option></select>
-        <button class="btn" id="loadBtn">読み込む</button>
-        <button class="btn danger" id="delSaveBtn">削除</button>
-      </div>
-      <details>
-        <summary style="font-size:12px">盤面コード（書き出し／読み込み）</summary>
-        <textarea id="boardCode" rows="3" placeholder="盤面コード"></textarea>
-        <div class="row" style="margin-top:5px">
-          <button class="btn" id="exportBtn">コードを書き出す</button>
-          <button class="btn" id="importBtn">コードで読み込む</button>
-        </div>
-      </details>
     </div>
   </div>
 </div>
@@ -189,7 +172,7 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
 
 <footer>
   <p>遊び方：ドロップを掴んでなぞると、掴んだドロップが指に付いて動き、通過したドロップと滑らかに入れ替わります。指を離すか制限時間になると、本家と同じようにコンボが1つずつ順番に消えていきます。</p>
-  <p>仕様メモ（本アプリの再現範囲）：落ちコンは常に無し（新しく落ちてくるドロップではコンボが成立しないよう補充を調整しています。自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲がかかったマスのドロップは見えなくなります（雲と超暗闇はターン経過で薄れます）。ロックされたドロップは揃えれば通常どおり消え、本アプリでは簡略ルールとしてL字消しで盤面全体のロックが外れます。ダメージ表示は割合のみで、体力ゲージは付けていません。操作時間の初期値は本家の基本操作時間に合わせた6.0秒です（本家では2024年8月30日のVer.21.7で5秒から6秒に変更されました）。ルーレットは全マスで色が変わるタイミングが揃っていて、操作中も回り続けます（掴んでいるドロップのマスと、ロックされたドロップのマスだけ止まります）。3個以上繋がった爆弾は、他の爆弾の爆発に巻き込まれても消えず、コンボとして残ります。</p>
+  <p>仕様メモ（本アプリの再現範囲）：落ちコンは「なし」が基本設定です（新しく落ちてくるドロップではコンボが成立しないよう補充を調整しています。自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。「落ちコン あり」にすると、補充が自然に落ちてきてコンボが続くようになります。目覚めは落ちてくるドロップの偏りで、毒・お邪魔・トゲが混ざるもの、特定の属性が多め（約4割）のもの、2属性のみ落ちるものが選べます（落ちコンなしと組み合わせた場合、ごく稀に偏りの範囲外の基本色で補充することがあります）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲がかかったマスのドロップは見えなくなります（雲と超暗闇はターン経過で薄れます）。ロックされたドロップは揃えれば通常どおり消え、本アプリでは簡略ルールとしてL字消しで盤面全体のロックが外れます。ダメージ表示は割合のみで、体力ゲージは付けていません。操作時間の初期値は本家の基本操作時間に合わせた6.0秒です（本家では2024年8月30日のVer.21.7で5秒から6秒に変更されました）。ルーレットは全マスで色が変わるタイミングが揃っていて、操作中も回り続けます（掴んでいるドロップのマスと、ロックされたドロップのマスだけ止まります）。3個以上繋がった爆弾は、他の爆弾の爆発に巻き込まれても消えず、コンボとして残ります。</p>
   <p>盤面の大きさと位置：実機スクリーンショット複数枚の実測に基づき、盤面は画面幅いっぱい（左右マージンなし）、1マスは正方形、盤面は画面下端に接するレイアウトにしています。非公式のファンメイド練習アプリです。</p>
 </footer>
 </div>
@@ -244,9 +227,14 @@ function rnd(a){return a[Math.floor(Math.random()*a.length)]}
 function makeCell(t){return{uid:uidSeq++,t:t,plus:false,weak:false,lock:false,thorn:false,blind:false,sblind:0,unerase:false}}
 function makePos(){return{cloud:0,tape:false,roul:null}}
 function refillPool(){
- const p=BASIC.slice();
- if($("skyfallChk").checked){p.push("poison","jammer","poison","jammer")}
- return p;
+ const m=$("megumiSel").value;
+ if(m==="hazard")return BASIC.concat(["poison","jammer","poison","jammer"]);
+ if(m==="firewater")return ["fire","water"];
+ if(m==="waterwood")return ["water","wood"];
+ if(m==="woodfire")return ["wood","fire"];
+ if(m==="lightdark")return ["light","dark"];
+ if(BASIC.includes(m))return [m,m].concat(BASIC);
+ return BASIC.slice();
 }
 function newBoard(shuffle){
  board=[];pos=[];
@@ -259,7 +247,7 @@ function shuffleBoard(){
    let t;let guard=0;
    do{t=rnd(pool);guard++}while(guard<30&&wouldMatch(r,c,t));
    const cell=makeCell(t);
-   if($("skyfallChk").checked&&Math.random()<0.06)cell.thorn=true;
+   if($("megumiSel").value==="hazard"&&Math.random()<0.06)cell.thorn=true;
    board[r][c]=cell;
  }
  render();
@@ -410,10 +398,15 @@ function gravityAndRefill(){
    for(let r=rows-1;r>=0;r--){
      if(stack.length){board[r][c]=stack.shift()}
      else{
-       let t,guard=0;
-       do{t=rnd(refillPool());guard++}while(guard<40&&refillWouldMatch(r,c,t));
+       let t;
+       if($("ochikonSel").value==="on"){t=rnd(refillPool())}
+       else{
+         let guard=0;
+         do{t=rnd(refillPool());guard++}while(guard<40&&refillWouldMatch(r,c,t));
+         if(refillWouldMatch(r,c,t)){const alt=BASIC.find(x=>!refillWouldMatch(r,c,x));if(alt)t=alt}
+       }
        const cell=makeCell(t);
-       if($("skyfallChk").checked&&Math.random()<0.05)cell.thorn=true;
+       if($("megumiSel").value==="hazard"&&Math.random()<0.05)cell.thorn=true;
        board[r][c]=cell;lastSpawned.add(cell.uid);
      }
    }
@@ -670,8 +663,15 @@ $("modeBtn").onclick=()=>{
 };
 document.querySelectorAll(".etab").forEach(b=>b.onclick=()=>{
  document.querySelectorAll(".etab").forEach(x=>x.classList.remove("on"));b.classList.add("on");
- ["drop","mod","pos","bulk","save"].forEach(t=>{$("tab-"+t).style.display=t===b.dataset.tab?"block":"none"});
+ ["drop","mod","bulk"].forEach(t=>{$("tab-"+t).style.display=t===b.dataset.tab?"block":"none"});
 });
+$("stateResetBtn").onclick=()=>{
+ if(resolving)return;
+ turn=0;maxCombo=0;turnDmg=0;snapshot=null;thornsThisMove=0;held=null;heldUid=null;stopTimer();
+ $("stCombo").textContent=0;
+ $("lrCombo").textContent="-";$("lrCleared").textContent="-";$("lrDmg").textContent="-";
+ hideComboPop();render();
+};
 $("resetBtn").onclick=()=>{
  if(resolving)return;
  editMode=false;
@@ -679,7 +679,7 @@ $("resetBtn").onclick=()=>{
  $("modeBtn").textContent="✏️ 編集モード";$("modeBtn").classList.remove("edit");
  cols=6;rows=5;
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size==="6x5"));
- $("skyfallChk").checked=false;
+ $("ochikonSel").value="off";$("megumiSel").value="none";
  setTime(6);
  turn=0;maxCombo=0;turnDmg=0;snapshot=null;held=null;heldUid=null;thornsThisMove=0;
  $("stCombo").textContent=0;
@@ -719,7 +719,6 @@ $("bulkClearGimmickBtn").onclick=()=>{
  render();
 };
 $("boardClearBtn").onclick=()=>{newBoard(true);render()};
-function parseSaves(){try{const v=JSON.parse(localStorage.getItem("padSaves")||"{}");return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}catch(e){return {}}}
 const ROUL_OK=new Set(["fire","water","wood","light","dark","heal","poison","jammer"]);
 const hasOnly=(o,keys)=>Object.keys(o).every(k=>keys.includes(k));
 function sanitizeData(d){
@@ -768,38 +767,6 @@ function sanitizeData(d){
  uidSeq=Math.max(uidSeq,...out.board.flat().map(x=>x.uid+1));
  return out;
 }
-function refreshSaveList(){
- const all=parseSaves();
- const sel=$("saveList");sel.innerHTML="<option value=''>保存した盤面…</option>";
- Object.keys(all).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=k;sel.appendChild(o)});
-}
-function afterLoad(){
- snapshot=null; uidSeq=Math.max(uidSeq,...board.flat().filter(Boolean).map(x=>x.uid+1));
- document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size===cols+"x"+rows));
- render();
-}
-$("saveBtn").onclick=()=>{
- const name=prompt("盤面の名前");if(!name)return;
- const all=parseSaves();
- all[name]={cols,rows,board,pos};
- try{localStorage.setItem("padSaves",JSON.stringify(all))}catch(e){alert("保存できませんでした（ストレージ容量不足の可能性があります）");return}
- refreshSaveList();
-};
-$("loadBtn").onclick=()=>{
- const all=parseSaves();const v=sanitizeData(all[$("saveList").value]);
- if(!v){alert("盤面を選んでください（保存データが壊れている場合は読み込めません）");return}
- cols=v.cols;rows=v.rows;board=v.board;pos=v.pos;afterLoad();
-};
-$("delSaveBtn").onclick=()=>{
- const all=parseSaves();delete all[$("saveList").value];
- localStorage.setItem("padSaves",JSON.stringify(all));refreshSaveList();
-};
-$("exportBtn").onclick=()=>{$("boardCode").value=btoa(unescape(encodeURIComponent(JSON.stringify({cols,rows,board,pos}))))};
-$("importBtn").onclick=()=>{
- const code=$("boardCode").value.trim();
- if(code.length>100000){alert("コードが大きすぎます");return}
- try{const v=sanitizeData(JSON.parse(decodeURIComponent(escape(atob(code)))));if(!v){alert("コードの内容が正しくありません");return}cols=v.cols;rows=v.rows;board=v.board;pos=v.pos;afterLoad()}catch(e){alert("コードを読み込めませんでした")}
-};
 function setTime(v){
  opTime=Math.min(200,Math.max(1,Math.round(v*10)/10));
  $("timeNum").value=opTime.toFixed(1);$("timeRange").value=opTime;
@@ -809,9 +776,12 @@ $("timeNum").onchange=e=>setTime(parseFloat(e.target.value)||5);
 $("timeRange").oninput=e=>setTime(parseFloat(e.target.value));
 let resizeT=null;
 window.addEventListener("resize",()=>{clearTimeout(resizeT);resizeT=setTimeout(()=>render(),120)});
+document.addEventListener("gesturestart",e=>e.preventDefault());
+document.addEventListener("dblclick",e=>e.preventDefault());
+document.addEventListener("touchmove",e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
+document.addEventListener("wheel",e=>{if(e.ctrlKey)e.preventDefault()},{passive:false});
 newBoard(true);
 buildPalettes();
-refreshSaveList();
 render();
 </script>
 </body>
