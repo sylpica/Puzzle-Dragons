@@ -106,7 +106,7 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
   <span class="pill">ターン <b id="stTurn">0</b></span>
   <span class="pill">コンボ <b id="stCombo">0</b></span>
   <span class="pill">最大 <b id="stMax">0</b></span>
-  <span class="pill">残り時間 <b id="stTime">5.0</b>秒</span>
+  <span class="pill">残り時間 <b id="stTime">6.0</b>秒</span>
   <span class="pill">被ダメ <b id="stDmg">0%</b></span>
 </div>
 <div id="stage">
@@ -187,9 +187,9 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
   </div>
   <div class="row">
     <label>操作時間</label>
-    <input type="number" id="timeNum" min="1" max="200" step="0.1" value="5.0" style="width:74px">
+    <input type="number" id="timeNum" min="1" max="200" step="0.1" value="6.0" style="width:74px">
     <span style="font-size:12px">秒</span>
-    <input type="range" id="timeRange" min="1" max="200" step="0.1" value="5">
+    <input type="range" id="timeRange" min="1" max="200" step="0.1" value="6">
     <label><input type="checkbox" id="skyfallChk"> 目覚め（毒・お邪魔・トゲが落ちる）</label>
   </div>
 </div>
@@ -197,7 +197,7 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
 
 <footer>
   <p>遊び方：ドロップを掴んでなぞると、掴んだドロップが指に付いて動き、通過したドロップと滑らかに入れ替わります。指を離すか制限時間になると、本家と同じようにコンボが1つずつ順番に消えていきます。</p>
-  <p>仕様メモ（本アプリの再現範囲）：落ちコンは常に無し（新しく落ちてくるドロップではコンボが成立しないよう補充を調整しています。自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲・超暗闇はターン経過で薄れます。ロックされたドロップは揃えれば通常どおり消え、本アプリでは簡略ルールとしてL字消しで盤面全体のロックが外れます。ダメージ表示は割合のみで、体力ゲージは付けていません。操作時間の初期値5.0秒は本アプリの練習用設定です（本家の基本操作時間は2024年8月30日のVer.21.7で6秒に変更されています。本家に合わせて練習する場合は6.0秒に設定してください）。ルーレットは操作中も回り続けます（掴んでいるドロップのマスと、ロックされたドロップのマスだけ止まります）。3個以上繋がった爆弾は、他の爆弾の爆発に巻き込まれても消えず、コンボとして残ります。</p>
+  <p>仕様メモ（本アプリの再現範囲）：落ちコンは常に無し（新しく落ちてくるドロップではコンボが成立しないよう補充を調整しています。自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲・超暗闇はターン経過で薄れます。ロックされたドロップは揃えれば通常どおり消え、本アプリでは簡略ルールとしてL字消しで盤面全体のロックが外れます。ダメージ表示は割合のみで、体力ゲージは付けていません。操作時間の初期値は本家の基本操作時間に合わせた6.0秒です（本家では2024年8月30日のVer.21.7で5秒から6秒に変更されました）。ルーレットは操作中も回り続けます（掴んでいるドロップのマスと、ロックされたドロップのマスだけ止まります）。3個以上繋がった爆弾は、他の爆弾の爆発に巻き込まれても消えず、コンボとして残ります。</p>
   <p>盤面の大きさと位置：実機スクリーンショット複数枚の実測に基づき、盤面は画面幅いっぱい（左右マージンなし）、1マスは正方形、盤面は画面下端に接するレイアウトにしています。非公式のファンメイド練習アプリです。</p>
 </footer>
 </div>
@@ -238,7 +238,7 @@ let board=[],pos=[];
 let editMode=false,tool={kind:"drop",value:"fire"};
 let bulkSel=new Set(["fire"]);
 let turn=0,maxCombo=0,turnDmg=0,dmgEntries=[];
-let opTime=5.0,snapshot=null,resolving=false;
+let opTime=6.0,snapshot=null,resolving=false;
 let held=null,heldUid=null,lastPointer=null,timerId=null,remainMs=0,moveStarted=false,thornsThisMove=0;
 let uidSeq=1,lastSpawned=new Set();
 const dropNodes=new Map();
@@ -691,7 +691,7 @@ $("resetBtn").onclick=()=>{
  cols=6;rows=5;
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size==="6x5"));
  $("skyfallChk").checked=false;
- setTime(5);
+ setTime(6);
  turn=0;maxCombo=0;turnDmg=0;dmgEntries=[];snapshot=null;held=null;heldUid=null;thornsThisMove=0;
  $("stCombo").textContent=0;
  $("dmglog").textContent="まだダメージを受けていません。毒・猛毒を消す、爆弾を残す、トゲを動かすとここに内訳が出ます。";
