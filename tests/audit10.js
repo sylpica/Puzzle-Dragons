@@ -782,8 +782,24 @@ async function drag(page, from, to, steps) {
       const fullAfter = board.flat().filter(Boolean).length;
       return { freshKept, totalCells, stillBlind, fullAfter };
     });
-    ok('SB1 super-blind counters: drops spawned this turn keep 1 for the next turn; pre-existing drops tick down to 0',
-      sb1.freshKept === sb1.totalCells && sb1.totalCells === 30 && sb1.stillBlind === 0 && sb1.fullAfter === 30, JSON.stringify(sb1));
+    ok('SB1 super-blind is permanent: spawned drops arrive blinded and surviving drops stay blinded across turns (no tick-down)',
+      sb1.freshKept === sb1.totalCells && sb1.totalCells === 30 && sb1.stillBlind === 26 && sb1.fullAfter === 30, JSON.stringify(sb1));
+    const pm1 = await page.evaluate(async () => {
+      const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { board[r][c] = makeCell(B[(r + 2 * c) % 6]); pos[r][c] = makePos(); }
+      pos[1][1].cloud = 3; board[2][2].sblind = 1;
+      board[0][1].t = 'fire'; board[0][2].t = 'fire'; // one match on row 0 so a resolution actually runs
+      snapshot = null; render();
+      await resolveBoard();
+      const cloudKept = pos[1][1].cloud, blindKept = board[2][2] && board[2][2].sblind;
+      const cloudLabel = document.querySelector('.cloudov span') ? document.querySelector('.cloudov span').textContent : '';
+      const blindBadge = document.querySelector('.b-sblind') ? document.querySelector('.b-sblind').textContent : '';
+      await resolveBoard();
+      return { cloudKept, blindKept, cloudLabel, blindBadge, cloudAfter2: pos[1][1].cloud, blindAfter2: board[2][2] && board[2][2].sblind };
+    });
+    ok('PM1 cloud and super-blind are permanent: values survive two resolutions and their displays show no turn counter',
+      pm1.cloudKept === 3 && pm1.blindKept === 1 && pm1.cloudAfter2 === 3 && pm1.blindAfter2 === 1 && pm1.cloudLabel === '雲' && pm1.blindBadge === '超',
+      JSON.stringify(pm1));
     const t1 = await page.evaluate(async () => {
       document.getElementById('ochikonSel').value = 'on';
       const B = ['fire', 'water', 'wood', 'light', 'dark', 'heal'];
