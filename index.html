@@ -260,7 +260,7 @@ function newBoard(shuffle){
  if(shuffle)shuffleBoard();
 }
 function shuffleBoard(){
- const pool=refillPool();
+ snapshot=null; const pool=refillPool();
  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
    let t;let guard=0;
    do{t=rnd(pool);guard++}while(guard<30&&wouldMatch(r,c,t));
@@ -403,7 +403,6 @@ function gravityAndRefill(){
        do{t=rnd(refillPool());guard++}while(guard<40&&refillWouldMatch(r,c,t));
        const cell=makeCell(t);
        if($("skyfallChk").checked&&Math.random()<0.05)cell.thorn=true;
-       if($("skyfallChk").checked&&Math.random()<0.03)cell.sblind=2;
        board[r][c]=cell;lastSpawned.add(cell.uid);
      }
    }
@@ -412,7 +411,7 @@ function gravityAndRefill(){
 function refillWouldMatch(r,c,t){
  let n=1;
  for(let rr=r+1;rr<rows&&board[rr][c]&&effType(rr,c)===t;rr++)n++;
- for(let rr=r-1;rr>=0&&board[rr][c]&&board[rr][c].t===t;rr--)n++;
+ for(let rr=r-1;rr>=0&&board[rr][c]&&effType(rr,c)===t;rr--)n++;
  if(n>=3)return true;
  n=1;
  for(let cc=c-1;cc>=0&&board[r][cc]&&board[r][cc].t===t;cc--)n++;
@@ -500,20 +499,26 @@ function pointerPos(e){
  const rect=wrapEl.getBoundingClientRect();
  return{x:e.clientX-rect.left,y:e.clientY-rect.top};
 }
+let activePid=null,lastPaint=null;
 wrapEl.addEventListener("pointerdown",e=>{
  e.preventDefault();
+ if(activePid!==null&&e.pointerId!==activePid)return;
  const p=cellFromEvent(e);if(!p)return;
+ activePid=e.pointerId;
  lastPointer=pointerPos(e);
- if(editMode){paint(p.r,p.c);editDrag=true;wrapEl.setPointerCapture(e.pointerId);return}
+ if(editMode){paint(p.r,p.c);lastPaint={r:p.r,c:p.c};editDrag=true;wrapEl.setPointerCapture(e.pointerId);return}
  if(resolving)return;
  if(pos[p.r][p.c].tape)return;
- snapshot=JSON.stringify({board,pos,turn,turnDmg,dmgEntries});
+ snapshot=JSON.stringify({cols,rows,board,pos,turn,turnDmg,dmgEntries});
  held={r:p.r,c:p.c};heldUid=board[p.r][p.c].uid;moveStarted=false;
  wrapEl.setPointerCapture(e.pointerId);
  render();
 });
 wrapEl.addEventListener("pointermove",e=>{
- if(editMode&&editDrag){const p=cellFromEvent(e);if(p)paint(p.r,p.c);return}
+ if(activePid!==null&&e.pointerId!==activePid)return;
+ if(editMode&&editDrag){const p=cellFromEvent(e);if(p){if(lastPaint){let r=lastPaint.r,c=lastPaint.c,guard=0;
+   while((r!==p.r||c!==p.c)&&guard++<64){if(c!==p.c)c+=Math.sign(p.c-c);else if(r!==p.r)r+=Math.sign(p.r-r);paint(r,c)}
+   lastPaint={r:p.r,c:p.c};}else{paint(p.r,p.c);lastPaint={r:p.r,c:p.c}}}return}
  if(!held||resolving)return;
  lastPointer=pointerPos(e);
  // held drop follows the finger immediately (no full re-render)
@@ -551,18 +556,19 @@ async function endMove(){
  if(moveStarted){await resolveBoard()}
  moveStarted=false;render();
 }
-wrapEl.addEventListener("pointerup",()=>{if(editMode){editDrag=false;return}endMove()});
-wrapEl.addEventListener("pointercancel",()=>{if(editMode){editDrag=false;return}endMove()});
+wrapEl.addEventListener("pointerup",e=>{if(activePid!==null&&e.pointerId!==activePid)return;activePid=null;lastPaint=null;if(editMode){editDrag=false;return}endMove()});
+wrapEl.addEventListener("pointercancel",e=>{if(activePid!==null&&e.pointerId!==activePid)return;activePid=null;lastPaint=null;if(editMode){editDrag=false;return}endMove()});
 let editDrag=false;
 function startTimer(){
- remainMs=opTime*1000;
+ const dur=opTime;
+ remainMs=dur*1000;
  const t0=performance.now();
  $("timerbar").style.width="100%";
  timerId=setInterval(()=>{
-   remainMs=opTime*1000-(performance.now()-t0);
+   remainMs=dur*1000-(performance.now()-t0);
    if(remainMs<=0){remainMs=0;$("stTime").textContent="0.0";$("timerbar").style.width="0%";stopTimer();endMove();return}
    $("stTime").textContent=(remainMs/1000).toFixed(1);
-   $("timerbar").style.width=(remainMs/(opTime*1000)*100)+"%";
+   $("timerbar").style.width=(remainMs/(dur*1000)*100)+"%";
  },50);
 }
 function stopTimer(){if(timerId){clearInterval(timerId);timerId=null}$("stTime").textContent=opTime.toFixed(1);$("timerbar").style.width="100%"}
@@ -676,53 +682,86 @@ document.querySelectorAll(".sizechip").forEach(b=>b.onclick=()=>{if(resolving)re
  const [c,r]=b.dataset.size.split("x").map(Number);cols=c;rows=r;newBoard(true);render();
 });
 $("shuffleBtn").onclick=()=>{if(!resolving)shuffleBoard()};
-$("undoBtn").onclick=()=>{if(snapshot&&!resolving){const s=JSON.parse(snapshot);board=s.board;pos=s.pos;turn=s.turn;turnDmg=s.turnDmg||0;dmgEntries=s.dmgEntries||[];uidSeq=Math.max(uidSeq,...board.flat().map(x=>x.uid+1));$("dmglog").innerHTML=dmgEntries.length?dmgEntries.join("<br>"):"まだダメージを受けていません。";$("stCombo").textContent=0;snapshot=null;render()}};
+$("undoBtn").onclick=()=>{if(snapshot&&!resolving){let s=null;try{s=JSON.parse(snapshot)}catch(e){}
+ const v=s&&sanitizeData(s);
+ if(v){cols=v.cols;rows=v.rows;board=v.board;pos=v.pos;turn=s.turn;turnDmg=s.turnDmg||0;dmgEntries=s.dmgEntries||[];
+  document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size===cols+"x"+rows));
+  $("dmglog").innerHTML=dmgEntries.length?dmgEntries.join("<br>"):"まだダメージを受けていません。";$("stCombo").textContent=0;}
+ snapshot=null;render()}};
 $("resetDmgBtn").onclick=()=>{turnDmg=0;dmgEntries=[];$("dmglog").textContent="まだダメージを受けていません。";render()};
 $("bulkFillBtn").onclick=()=>{
- if(bulkSel.size!==1){alert("全マス変更は色を1つだけ選んでください（複数色は「陣にする」を使ってください）");return}
+ snapshot=null; if(bulkSel.size!==1){alert("全マス変更は色を1つだけ選んでください（複数色は「陣にする」を使ってください）");return}
  const t=[...bulkSel][0];
  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)board[r][c]=makeCell(t);
  render();
 };
 $("bulkJinBtn").onclick=()=>{
- if(!bulkSel.size){alert("色を選んでください");return}
+ snapshot=null; if(!bulkSel.size){alert("色を選んでください");return}
  const arr=[...bulkSel];
  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)board[r][c]=makeCell(rnd(arr));
  render();
 };
 $("bulkClearGimmickBtn").onclick=()=>{
- board.forEach(rowA=>rowA.forEach(cell=>{cell.plus=cell.weak=cell.lock=cell.thorn=cell.blind=cell.unerase=false;cell.sblind=0}));
+ snapshot=null; board.forEach(rowA=>rowA.forEach(cell=>{cell.plus=cell.weak=cell.lock=cell.thorn=cell.blind=cell.unerase=false;cell.sblind=0}));
  pos.forEach(rowA=>rowA.forEach(p=>{p.cloud=0;p.tape=false;p.roul=null}));
  render();
 };
 $("boardClearBtn").onclick=()=>{newBoard(true);render()};
+function parseSaves(){try{const v=JSON.parse(localStorage.getItem("padSaves")||"{}");return v&&typeof v==="object"&&!Array.isArray(v)?v:{}}catch(e){return {}}}
+const ROUL_OK=new Set(["fire","water","wood","light","dark","heal","poison","jammer"]);
+function sanitizeData(d){
+ if(!d||typeof d!=="object")return null;
+ if(![[5,4],[6,5],[7,6]].some(([c,r])=>c===d.cols&&r===d.rows))return null;
+ if(!Array.isArray(d.board)||!Array.isArray(d.pos))return null;
+ const out={cols:d.cols,rows:d.rows,board:[],pos:[]};let mx=0;
+ for(let r=0;r<d.rows;r++){out.board.push([]);out.pos.push([]);
+  for(let c=0;c<d.cols;c++){
+   const cell=d.board[r]&&d.board[r][c];
+   if(!cell||typeof cell!=="object"||!(cell.t in TYPES))return null;
+   const nc=makeCell(cell.t);
+   nc.plus=!!cell.plus;nc.weak=!!cell.weak;nc.lock=!!cell.lock;nc.thorn=!!cell.thorn;nc.blind=!!cell.blind;nc.unerase=!!cell.unerase;
+   nc.sblind=Math.max(0,Math.min(99,parseInt(cell.sblind)||0));
+   nc.uid=(typeof cell.uid==="number"&&isFinite(cell.uid)&&cell.uid>0)?cell.uid:uidSeq++;
+   mx=Math.max(mx,nc.uid);out.board[r].push(nc);
+   const np=makePos();const p=d.pos[r]&&d.pos[r][c];
+   if(p&&typeof p==="object"){np.cloud=Math.max(0,Math.min(99,parseInt(p.cloud)||0));np.tape=!!p.tape;
+    if(p.roul&&typeof p.roul==="object"&&Array.isArray(p.roul.colors)){
+     const cs=p.roul.colors.filter(x=>ROUL_OK.has(x));
+     if(cs.length)np.roul={colors:cs,interval:[500,1000,2000].includes(p.roul.interval)?p.roul.interval:1000,idx:Math.max(0,parseInt(p.roul.idx)||0),next:0};
+    }}
+   out.pos[r].push(np);
+  }}
+ uidSeq=Math.max(uidSeq,mx+1);return out;
+}
 function refreshSaveList(){
- const all=JSON.parse(localStorage.getItem("padSaves")||"{}");
+ const all=parseSaves();
  const sel=$("saveList");sel.innerHTML="<option value=''>保存した盤面…</option>";
  Object.keys(all).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=k;sel.appendChild(o)});
 }
 function afterLoad(){
- uidSeq=Math.max(uidSeq,...board.flat().filter(Boolean).map(x=>x.uid+1));
+ snapshot=null; uidSeq=Math.max(uidSeq,...board.flat().filter(Boolean).map(x=>x.uid+1));
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size===cols+"x"+rows));
  render();
 }
 $("saveBtn").onclick=()=>{
  const name=prompt("盤面の名前");if(!name)return;
- const all=JSON.parse(localStorage.getItem("padSaves")||"{}");
- all[name]={cols,rows,board,pos};localStorage.setItem("padSaves",JSON.stringify(all));refreshSaveList();
+ const all=parseSaves();
+ all[name]={cols,rows,board,pos};
+ try{localStorage.setItem("padSaves",JSON.stringify(all))}catch(e){alert("保存できませんでした（ストレージ容量不足の可能性があります）");return}
+ refreshSaveList();
 };
 $("loadBtn").onclick=()=>{
- const all=JSON.parse(localStorage.getItem("padSaves")||"{}");const v=all[$("saveList").value];
- if(!v){alert("盤面を選んでください");return}
+ const all=parseSaves();const v=sanitizeData(all[$("saveList").value]);
+ if(!v){alert("盤面を選んでください（保存データが壊れている場合は読み込めません）");return}
  cols=v.cols;rows=v.rows;board=v.board;pos=v.pos;afterLoad();
 };
 $("delSaveBtn").onclick=()=>{
- const all=JSON.parse(localStorage.getItem("padSaves")||"{}");delete all[$("saveList").value];
+ const all=parseSaves();delete all[$("saveList").value];
  localStorage.setItem("padSaves",JSON.stringify(all));refreshSaveList();
 };
 $("exportBtn").onclick=()=>{$("boardCode").value=btoa(unescape(encodeURIComponent(JSON.stringify({cols,rows,board,pos}))))};
 $("importBtn").onclick=()=>{
- try{const v=JSON.parse(decodeURIComponent(escape(atob($("boardCode").value.trim()))));cols=v.cols;rows=v.rows;board=v.board;pos=v.pos;afterLoad()}catch(e){alert("コードを読み込めませんでした")}
+ try{const v=sanitizeData(JSON.parse(decodeURIComponent(escape(atob($("boardCode").value.trim())))));if(!v){alert("コードの内容が正しくありません");return}cols=v.cols;rows=v.rows;board=v.board;pos=v.pos;afterLoad()}catch(e){alert("コードを読み込めませんでした")}
 };
 function setTime(v){
  opTime=Math.min(200,Math.max(1,Math.round(v*10)/10));
