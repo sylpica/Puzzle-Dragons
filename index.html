@@ -173,7 +173,7 @@ textarea{width:100%;background:#140f0a;color:#ddd;border:1px solid #3a2a16;borde
 
 <footer>
   <p>遊び方：ドロップを掴んでなぞると、掴んだドロップが指に付いて動き、通過したドロップと滑らかに入れ替わります。指を離すか制限時間になると、本家と同じようにコンボが1つずつ順番に消えていきます。</p>
-  <p>仕様メモ（本アプリの再現範囲）：落ちコンは「なし」が基本設定です。本家の落ちコンなしと同じく、ドロップが消えて空いたマスはターンの間は空白のままで、新しいドロップは落ちてきません（自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。盤面のコンボが終わった時点で、空いたマスに新しいドロップが補充されます（その補充ではコンボは成立しません）。「落ちコン あり」にすると、消えるたびに補充が落ちてきてコンボが続くようになります。目覚めは落ちてくるドロップの偏りで、毒・お邪魔・トゲが混ざるもの、特定の属性が多め（約4割）のもの、2属性のみ落ちるものが選べます（落ちコンなしと組み合わせた場合、ごく稀に偏りの範囲外の基本色で補充することがあります）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲がかかったマスのドロップは見えなくなります（雲と超暗闇はターン経過で薄れます）。ロックされたドロップは揃えれば通常どおり消え、本アプリでは簡略ルールとしてL字消しで盤面全体のロックが外れます。ダメージ表示は割合のみで、体力ゲージは付けていません。操作時間の初期値は本家の基本操作時間に合わせた6.0秒です（本家では2024年8月30日のVer.21.7で5秒から6秒に変更されました）。ルーレットは全マスで色が変わるタイミングが揃っていて、操作中も回り続けます（掴んでいるドロップのマスと、ロックされたドロップのマスだけ止まります）。3個以上繋がった爆弾は、他の爆弾の爆発に巻き込まれても消えず、コンボとして残ります。</p>
+  <p>仕様メモ（本アプリの再現範囲）：落ちコンは「なし」が基本設定です。本家の落ちコンなしと同じく、ドロップが消えて空いたマスはターンの間は空白のままで、新しいドロップは落ちてきません（自分の消去で既存ドロップが落ちて繋がる「落とし」は成立します）。盤面のコンボが終わった時点で、空いたマスに新しいドロップが補充されます（その補充ではコンボは成立しません）。「落ちコン あり」にすると、消えるたびに補充が落ちてきてコンボが続くようになります。目覚めは落ちてくるドロップの偏りで、毒・お邪魔・トゲが混ざるもの、特定の属性が多め（マッチ回避の仕組みのため出現率は実測で約33%）のもの、2属性のみ落ちるものが選べます（落ちコンなしと組み合わせた場合、ごく稀に偏りの範囲外の基本色で補充することがあります）。爆弾は指を離した時点で3つ以上繋がっていなければ爆発し、1個につき最大HPの20%ダメージ＋縦横1列を破壊します。毒は1コンボにつき（繋げた個数＋1）×5%、猛毒は（個数＋1）×12.5%。トゲはトゲ付きドロップを1マスずらすごとに4%（掴んでいるドロップ自体は対象外）。ルーレットはマス側のギミックで、基本の色順は火→水→木→光→闇→回復で、間隔は低速2秒／通常1秒／高速0.5秒、色の組み合わせは指定色ルーレットとして変更できます。お邪魔・毒・爆弾がルーレットに入ると火から通常の色順に変わります。雲がかかったマスのドロップは見えなくなります（雲と超暗闇はターン経過で薄れます）。ロックされたドロップは揃えれば通常どおり消え、本アプリでは簡略ルールとしてL字消しで盤面全体のロックが外れます。ダメージ表示は割合のみで、体力ゲージは付けていません。操作時間の初期値は本家の基本操作時間に合わせた6.0秒です（本家では2024年8月30日のVer.21.7で5秒から6秒に変更されました）。ルーレットは全マスで色が変わるタイミングが揃っていて、操作中も回り続けます（掴んでいるドロップのマスと、ロックされたドロップのマスだけ止まります）。3個以上繋がった爆弾は、他の爆弾の爆発に巻き込まれても消えず、コンボとして残ります。</p>
   <p>盤面の大きさと位置：実機スクリーンショット複数枚の実測に基づき、盤面は画面幅いっぱい（左右マージンなし）、1マスは正方形、盤面は画面下端に接するレイアウトにしています。非公式のファンメイド練習アプリです。</p>
 </footer>
 </div>
@@ -244,12 +244,21 @@ function newBoard(shuffle){
 }
 function shuffleBoard(){
  snapshot=null; const pool=refillPool();
- for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
-   let t;let guard=0;
-   do{t=rnd(pool);guard++}while(guard<30&&wouldMatch(r,c,t));
-   const cell=makeCell(t);
+ const twoColor=pool.length===2;
+ let valid=false;
+ for(let attempt=0;attempt<(twoColor?64:1)&&!valid;attempt++){
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)board[r][c]=null;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+   const allowed=pool.filter(t=>!wouldMatch(r,c,t));
+   const cell=makeCell(allowed.length?rnd(allowed):rnd(pool));
    if($("megumiSel").value==="hazard"&&Math.random()<0.06)cell.thorn=true;
    board[r][c]=cell;
+  }
+  valid=findMatches().groups.length===0;
+ }
+ if(!valid){
+  const offset=Math.floor(Math.random()*2);
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)board[r][c]=makeCell(pool[(r+c+offset)%2]);
  }
  render();
 }
@@ -397,6 +406,10 @@ function applyGravity(){
    for(let r=rows-1;r>=0;r--)if(board[r][c])stack.push(board[r][c]);
    for(let r=rows-1;r>=0;r--){board[r][c]=stack.length?stack.shift():null}
  }
+ for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(board[r][c])bakeRoulEntry(board[r][c],pos[r][c]);
+}
+function bakeRoulEntry(cell,p){
+ if(p&&p.roul&&!cell.lock&&(cell.t==="poison"||cell.t==="dpoison"||cell.t==="jammer"||cell.t==="bomb"))cell.t="fire";
 }
 function spawnCell(r,c){
  let t;
@@ -526,11 +539,10 @@ wrapEl.addEventListener("pointerdown",e=>{
  e.preventDefault();
  if(activePid!==null&&e.pointerId!==activePid)return;
  const p=cellFromEvent(e);if(!p)return;
+ if(!editMode&&(resolving||pos[p.r][p.c].tape))return;
  activePid=e.pointerId;
  lastPointer=pointerPos(e);
  if(editMode){paint(p.r,p.c);lastPaint={r:p.r,c:p.c};editDrag=true;wrapEl.setPointerCapture(e.pointerId);return}
- if(resolving)return;
- if(pos[p.r][p.c].tape)return;
  snapshot=JSON.stringify({cols,rows,board,pos,turn,turnDmg,maxCombo,
   stCombo:$("stCombo").textContent,lrCombo:$("lrCombo").textContent,
   lrCleared:$("lrCleared").textContent,lrDmg:$("lrDmg").textContent});
@@ -570,6 +582,7 @@ function swapHeld(nr,nc){
  if(pa.roul)a.t=effType(held.r,held.c);
  if(pb.roul)b.t=effType(nr,nc);
  board[held.r][held.c]=b;board[nr][nc]=a;
+ bakeRoulEntry(a,pb);bakeRoulEntry(b,pa);
  held={r:nr,c:nc};
  if(!moveStarted){moveStarted=true;startTimer()}
 }
@@ -626,7 +639,7 @@ function paint(r,c){
    else if(tool.value==="tape")p.tape=!p.tape;
    else if(tool.value==="roul"){
      if(p.roul)p.roul=null;
-     else{const preset=getRoulPreset();p.roul={colors:preset.colors.slice(),interval:preset.interval,idx:0,next:0}}
+     else{const preset=getRoulPreset();p.roul={colors:preset.colors.slice(),interval:preset.interval,idx:0,next:0};bakeRoulEntry(cell,p)}
    }
    else if(tool.value==="posclear"){p.cloud=0;p.tape=false;p.roul=null}
  }
@@ -643,6 +656,10 @@ function getRoulPreset(){
  return ROUL_PRESETS.find(x=>x.id===sel)||ROUL_PRESETS[0];
 }
 function buildPalettes(){
+ const savedPreset=$("roulPreset").value||"std";
+ const hadCustom=$("roulInterval")!==null;
+ const savedColors=hadCustom?new Set([...document.querySelectorAll(".roulColorChk:checked")].map(ch=>ch.value)):new Set(ORDER);
+ const savedInterval=hadCustom?$("roulInterval").value:"1000";
  const dp=$("dropPalette");dp.innerHTML="";
  Object.keys(TYPES).forEach(t=>{
    const b=document.createElement("button");b.className="chip tool"+(tool.kind==="drop"&&tool.value===t?" on":"");
@@ -663,9 +680,12 @@ function buildPalettes(){
  });
  const rp=$("roulPreset");rp.innerHTML="";
  ROUL_PRESETS.forEach(p=>{const o=document.createElement("option");o.value=p.id;o.textContent=p.name;rp.appendChild(o)});
+ rp.value=savedPreset;
  rp.onchange=()=>{$("roulCustom").style.display=rp.value==="custom"?"inline-block":"none"};
  const rc=$("roulCustom");
- rc.innerHTML=ORDER.concat(["poison","jammer"]).map(t=>"<label style='margin-right:6px'><input type='checkbox' class='roulColorChk' value='"+t+"'"+(ORDER.includes(t)?" checked":"")+">"+TYPES[t].name+"</label>").join("")+"<select id='roulInterval'><option value='500'>0.5秒</option><option value='1000' selected>1秒</option><option value='2000'>2秒</option></select>";
+ rc.innerHTML=ORDER.concat(["poison","jammer"]).map(t=>"<label style='margin-right:6px'><input type='checkbox' class='roulColorChk' value='"+t+"'"+(savedColors.has(t)?" checked":"")+">"+TYPES[t].name+"</label>").join("")+"<select id='roulInterval'><option value='500'>0.5秒</option><option value='1000'>1秒</option><option value='2000'>2秒</option></select>";
+ $("roulInterval").value=savedInterval;
+ rc.style.display=rp.value==="custom"?"inline-block":"none";
 }
 /* controls */
 $("modeBtn").onclick=()=>{
