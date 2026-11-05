@@ -237,7 +237,7 @@ let cols=6,rows=5;
 let board=[],pos=[];
 let editMode=false,tool={kind:"drop",value:"fire"};
 let bulkSel=new Set(["fire"]);
-let turn=0,maxCombo=0,totalDmg=0,dmgEntries=[];
+let turn=0,maxCombo=0,turnDmg=0,dmgEntries=[];
 let opTime=5.0,snapshot=null,resolving=false;
 let held=null,heldUid=null,lastPointer=null,timerId=null,remainMs=0,moveStarted=false,thornsThisMove=0;
 let uidSeq=1,lastSpawned=new Set();
@@ -301,7 +301,7 @@ function renderCells(){
  }
  $("stTurn").textContent=turn;
  $("stMax").textContent=maxCombo;
- $("stDmg").textContent=fmtPct(totalDmg);
+ $("stDmg").textContent=fmtPct(turnDmg);
 }
 function dropSig(r,c){
  const cell=board[r][c],et=effType(r,c);
@@ -356,7 +356,7 @@ function syncDrops(){
  lastSpawned=new Set();
 }
 function fmtPct(v){return (Math.round(v*10)/10).toString().replace(/\.0$/,"")+"%"}
-function logDmg(html){dmgEntries.unshift(html);if(dmgEntries.length>30)dmgEntries.pop();$("dmglog").innerHTML=dmgEntries.join("<br>")}
+function logDmg(html){dmgEntries=[html];$("dmglog").innerHTML=html}
 function showComboPop(n){
  const el=$("comboPop");
  el.textContent=n+"コンボ";
@@ -425,7 +425,9 @@ async function flashCells(cells){
  await wait(210);
 }
 async function resolveBoard(){
- resolving=true;render();
+ resolving=true;turnDmg=0;dmgEntries=[];
+ $("dmglog").textContent="このターンはまだダメージを受けていません。";
+ render();
  let combos=0;const dmgParts=[];const clearedByType={};let clearedTotal=0,destroyedTotal=0;
  const first=findMatches();
  const bombExplode=[];
@@ -435,7 +437,7 @@ async function resolveBoard(){
  if(bombExplode.length){
    const dmg=bombExplode.length*20;
    dmgParts.push("爆弾 "+bombExplode.length+"個爆発 "+dmg+"%");
-   totalDmg+=dmg;
+   turnDmg+=dmg;
    const destroySet=new Set(),destroyCells=[];
    for(const [r,c] of bombExplode){
      for(let x=0;x<cols;x++)if(!destroySet.has(r*100+x)){destroySet.add(r*100+x);destroyCells.push([r,x])}
@@ -455,8 +457,8 @@ async function resolveBoard(){
    combos++;
    $("stCombo").textContent=combos;
    showComboPop(combos);
-   if(g.type==="poison"){const d=(g.cells.length+1)*5;dmgParts.push("毒 "+g.cells.length+"個 "+d+"%");totalDmg+=d}
-   if(g.type==="dpoison"){const d=(g.cells.length+1)*12.5;dmgParts.push("猛毒 "+g.cells.length+"個 "+fmtPct(d));totalDmg+=d}
+   if(g.type==="poison"){const d=(g.cells.length+1)*5;dmgParts.push("毒 "+g.cells.length+"個 "+d+"%");turnDmg+=d}
+   if(g.type==="dpoison"){const d=(g.cells.length+1)*12.5;dmgParts.push("猛毒 "+g.cells.length+"個 "+fmtPct(d));turnDmg+=d}
    const rowsInG={},colsInG={};
    g.cells.forEach(([r,c])=>{rowsInG[r]=(rowsInG[r]||0)+1;colsInG[c]=(colsInG[c]||0)+1});
    if(Object.values(rowsInG).some(v=>v>=3)&&Object.values(colsInG).some(v=>v>=3))lShape=true;
@@ -473,14 +475,14 @@ async function resolveBoard(){
  turn++;
  if(combos>maxCombo)maxCombo=combos;
  $("stCombo").textContent=combos;
- if(thornsThisMove>0){const d=thornsThisMove*4;dmgParts.unshift("トゲ "+thornsThisMove+"マス "+d+"%");totalDmg+=d}
+ if(thornsThisMove>0){const d=thornsThisMove*4;dmgParts.unshift("トゲ "+thornsThisMove+"マス "+d+"%");turnDmg+=d}
  if(dmgParts.length)logDmg("<span class='tot'>ターン"+turn+"：合計 "+fmtPct(dmgParts.reduce((s,p)=>{const m=p.match(/([\d.]+)%/);return s+(m?parseFloat(m[1]):0)},0))+"</span>（"+dmgParts.join(" / ")+"）");
  thornsThisMove=0;
  // last-turn result into the upper area
- const turnDmg=dmgParts.reduce((sm,p)=>{const m=p.match(/([\d.]+)%/);return sm+(m?parseFloat(m[1]):0)},0);
+ const turnDmgSum=dmgParts.reduce((sm,p)=>{const m=p.match(/([\d.]+)%/);return sm+(m?parseFloat(m[1]):0)},0);
  $("lrCombo").textContent=combos;
  $("lrCleared").textContent=clearedTotal+(destroyedTotal?"（+爆弾で破壊"+destroyedTotal+"）":"");
- $("lrDmg").textContent=dmgParts.length?fmtPct(turnDmg):"0%";
+ $("lrDmg").textContent=dmgParts.length?fmtPct(turnDmgSum):"0%";
  const byTypeStr=Object.keys(clearedByType).map(t=>TYPES[t].name+" "+clearedByType[t]+"個").join("・");
  $("lrDetail").innerHTML="ターン"+turn+"の内訳："+(byTypeStr?byTypeStr+" を消去":"消去なし")+(dmgParts.length?"<br>受けたダメージ："+dmgParts.join(" / "):"");
  resolving=false;render();
@@ -505,7 +507,7 @@ wrapEl.addEventListener("pointerdown",e=>{
  if(editMode){paint(p.r,p.c);editDrag=true;wrapEl.setPointerCapture(e.pointerId);return}
  if(resolving)return;
  if(pos[p.r][p.c].tape)return;
- snapshot=JSON.stringify({board,pos,turn,totalDmg,dmgEntries});
+ snapshot=JSON.stringify({board,pos,turn,turnDmg,dmgEntries});
  held={r:p.r,c:p.c};heldUid=board[p.r][p.c].uid;moveStarted=false;
  wrapEl.setPointerCapture(e.pointerId);
  render();
@@ -661,7 +663,7 @@ $("resetBtn").onclick=()=>{
  document.querySelectorAll(".sizechip").forEach(x=>x.classList.toggle("on",x.dataset.size==="6x5"));
  $("skyfallChk").checked=false;
  setTime(5);
- turn=0;maxCombo=0;totalDmg=0;dmgEntries=[];snapshot=null;held=null;heldUid=null;thornsThisMove=0;
+ turn=0;maxCombo=0;turnDmg=0;dmgEntries=[];snapshot=null;held=null;heldUid=null;thornsThisMove=0;
  $("stCombo").textContent=0;
  $("dmglog").textContent="まだダメージを受けていません。毒・猛毒を消す、爆弾を残す、トゲを動かすとここに内訳が出ます。";
  $("lrCombo").textContent="-";$("lrCleared").textContent="-";$("lrDmg").textContent="-";
@@ -674,8 +676,8 @@ document.querySelectorAll(".sizechip").forEach(b=>b.onclick=()=>{if(resolving)re
  const [c,r]=b.dataset.size.split("x").map(Number);cols=c;rows=r;newBoard(true);render();
 });
 $("shuffleBtn").onclick=()=>{if(!resolving)shuffleBoard()};
-$("undoBtn").onclick=()=>{if(snapshot&&!resolving){const s=JSON.parse(snapshot);board=s.board;pos=s.pos;turn=s.turn;totalDmg=s.totalDmg||0;dmgEntries=s.dmgEntries||[];uidSeq=Math.max(uidSeq,...board.flat().map(x=>x.uid+1));$("dmglog").innerHTML=dmgEntries.length?dmgEntries.join("<br>"):"まだダメージを受けていません。";$("stCombo").textContent=0;snapshot=null;render()}};
-$("resetDmgBtn").onclick=()=>{totalDmg=0;dmgEntries=[];$("dmglog").textContent="まだダメージを受けていません。";render()};
+$("undoBtn").onclick=()=>{if(snapshot&&!resolving){const s=JSON.parse(snapshot);board=s.board;pos=s.pos;turn=s.turn;turnDmg=s.turnDmg||0;dmgEntries=s.dmgEntries||[];uidSeq=Math.max(uidSeq,...board.flat().map(x=>x.uid+1));$("dmglog").innerHTML=dmgEntries.length?dmgEntries.join("<br>"):"まだダメージを受けていません。";$("stCombo").textContent=0;snapshot=null;render()}};
+$("resetDmgBtn").onclick=()=>{turnDmg=0;dmgEntries=[];$("dmglog").textContent="まだダメージを受けていません。";render()};
 $("bulkFillBtn").onclick=()=>{
  if(bulkSel.size!==1){alert("全マス変更は色を1つだけ選んでください（複数色は「陣にする」を使ってください）");return}
  const t=[...bulkSel][0];
